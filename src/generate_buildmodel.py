@@ -14,13 +14,9 @@ def parse_seqfile(filename):
 	for line in seqfile:
 		line = line.strip().rstrip()
 		
-		#if line_number == 10:
-		#	print "Raw Sequence:\n"+line+"\n\n"
 		if line_number >= 11:
 			if line != "":
 				line_array = line.split("\t")
-				#chain_aminos[line_array[1]].append(line_array[3])	
-				#line_array[1] is chain letter.
 				if line_array[1] in chain_aminos:
 					chain_aminos[line_array[1]].append(line_array[3])
 				else:
@@ -121,8 +117,7 @@ def main():
 	#for other, weirder proteins, this is AB match vs CD match.
 
 	rep_chain_number = ord(proteins[protein].values()[0]['chains'][0])-65
-	#rep_chain_number = 0
-	#print "MANUAL REP CHAIN NUMBER FOR ZIKA TESTS, UNCOMMENT LINE TO CHANGE"
+
 	print "Selecting Rep chain number: " + str(rep_chain_number)
 	genDirs(chains[protein][rep_chain_number], chain_aminos, protein)
 	#for group in chains[protein]:
