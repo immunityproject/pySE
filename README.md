@@ -37,8 +37,8 @@ pip install -r pySE/requirements.txt
 * **convert_foldx_output_directories_to_csv.py** - Collects energy change results from all FoldX directories into a CSV file.
 * **generate_buildmodel.py** - Given a protein name, generate a set of FoldX compatible run directories which replace the current WT with each other possible amino for all relevant chains.
 * **generate_mutant_string.py** - Deprecated script, replaced with buildmodel.  Performed replacements with FoldX's positionscan command, and did direct parsing of PDBs. 
-* **proteins.py** -
-* **scan_foldx_jobs.py** -
+* **proteins.py** - Settings and configuration variables for other scripts.
+* **scan_foldx_jobs.py** - Examine running FoldX job directories to determine status.
 * **scan_to_attributes.py** -
 
 
