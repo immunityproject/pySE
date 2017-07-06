@@ -116,5 +116,5 @@ the Boltzmann Constant and ambient temperature, etc.
 * **generate_mutant_string.py** - Deprecated script, replaced with buildmodel.  Performed replacements with FoldX's positionscan command, and did direct parsing of PDBs. 
 * **proteins.py** - Settings and configuration variables for other scripts.
 * **scan_foldx_jobs.py** - Examine running FoldX job directories to determine status.
-* **scan_to_attributes.py** -
+* **scan_to_attributes.py** - Generate necessary data for Structural Entropy heatmap visualizations.
 
