@@ -1,10 +1,19 @@
+#!/usr/bin/python
 # coding=utf-8
+
+# This is the final analysis script.  It reads data from the FoldX jobs directory and can compute various things
+# depending on command-line switches:
+# - Boltzmann Distribution for all mutations, the corresponding Site Shannon Entropies, and the epitope Structural Entropies
+# - Structural Entropy for all sites (--scan)
+# - 3-D displacements due to mutations (experimental, --displacement)
+
 import math
 import os
 import re
 import sys
 import csv
 from argparse import ArgumentParser
+from traceback import print_exc
 
 import bigfloat
 from bigfloat import BigFloat
@@ -12,44 +21,83 @@ from bigfloat import BigFloat
 from proteins import proteins, pdbs, codes
 
 
+# In trying to replicate the results of Pereyra et al, we explored dividing the change in free energy by the symmetry
+# number of a rotamer.  For example, a setting of rotamerSymmetriesToTry = [1,6] will calculate results using both the
+# total free energy deltas and the total energy deltas divided by 6
 rotamerSymmetriesToTry = [1]
-# divideByKTToTry = [True,False]
+
+# Trying to figure out units in the original paper, we explored dividing the energies by the Boltzmann Constant times
+# temperature.  This affects the magnitude of the elements in the Boltzmann Distribution, but it does not impact the
+# final Shannon Entropy calculations.
+# Setting divideByKTToTry = [True,False] will produce results with and without the division by the kT constant
 divideByKTToTry = [False]
 
-baselineMeanEnergy = 0
-boltzmannConstant = 0.0019872041  # kcal/(mole.Kelvin)
-temperature = 298  # Kelvin
-bigfloatPrecision = 100
 
 parser = ArgumentParser()
-parser.add_argument('--debug',dest='debug',action='store_true')
-parser.add_argument('-q',dest='quiet',action='store_true',help='warnings are not printed')
-parser.add_argument('-p','--protein',dest='protein',default=None,help='must be used in conjunction with --sites')
+
+parser.add_argument('--debug',dest='debug',action='store_true', help='Show information helpful for script debugging')
+
+parser.add_argument('-q',dest='quiet',action='store_true',
+						  help='Warnings about missing data are not printed')
+
+parser.add_argument('-p','--protein',dest='protein',default=None,metavar='PROTEIN_CODE',choices=proteins.keys(),
+						  help='Used in conjunction with --sites to limit analysis to a specific region')
+
 parser.add_argument('-s','--sites',dest='sites',default=None,
-                    help='the site range to analyze, using a dash range: "115-121".  must also specify --protein')
+                    help='Site range to analyze, using a dash range: "115-121". Ranges are inclusive. Must also specify --protein')
+
 parser.add_argument('-e','--epitope',dest='epitope',default=None,
-                    help='the case-insensitive epitope code to compute "KF11"  Automatically sets --protein and --site')
-parser.add_argument('-j','--jobs-dir',dest='jobs_dir',default='/epitopedata/jobs')
+                    help='Limit computation to a specific epitope. Shortcut for setting --protein and --site')
+
+# experimental mode to compute the sum of squared displacements for each epitope,
 parser.add_argument('-d','--displacement',dest='displacement',action='store_true',
-                    help='use displacement calculation instead of energies.  requires a flag which sets the protein.')
+                    help='Use displacement calculation instead of energies.  requires a flag which sets the protein.')
 parser.add_argument('-b','--baseline',dest='baseline',choices=['absolute','raw'],default='absolute',
-                    help='how to preprocess energies before entropy calculation')
-parser.add_argument('--exclude-wt',dest='include_wt',action='store_false',help='if set, the Boltzmann distribution does not include the WT energy difference (always 0.0)')
-parser.add_argument('-c','--csv',dest='csv_filename',default=None,help='base pathname (without extension) for a csv dump of the data')
-parser.add_argument('--no-header',dest='csv_header',action='store_false',help='do not put a header row in the CSV files')
-parser.add_argument('--tab-delimited',dest='tab_delimited',action='store_true',help='use tab as a field delimiter in the CSV file')
-parser.add_argument('--scan',type=int,help='if set, the entropies of all ranges of the specified width are calculated.  If --protein is not specified then --all is implied')
-parser.add_argument('filenames',nargs='*')
+                    help='How to preprocess energies before entropy calculation')
+parser.add_argument('--exclude-wt',dest='include_wt',action='store_false',
+						  help='If set, the Boltzmann distribution does not include the WT energy difference (which is always 0.0)')
+parser.add_argument('-c','--csv',dest='csv_filename',default=None,
+						  help='base pathname (without extension) for a CSV dump of the results')
+parser.add_argument('--no-header',dest='csv_header',action='store_false',
+						  help='Exclude the header row from the CSV files')
+parser.add_argument('--tab-delimited',dest='tab_delimited',action='store_true',
+						  help='Use tab instead of comma as a field delimiter in the CSV file')
+parser.add_argument('--scan',type=int,metavar='WINDOW_WIDTH',
+						  help='Computes SE\'s for a sliding window across all sites.  WINDOW_WIDTH is the number of sites in the sliding window.')
+parser.add_argument('--energy-map',action='store_true',
+						  help='Compute the matrix of average energy deltas for all possible amino acid substitutions')
+parser.add_argument('jobs_dir') # where to find the jobs directories with FoldX results
+
+
 args = None
 site_summary = {}
 comparison = []
 
+
+# Constants
+boltzmannConstant = 0.0019872041  # kcal/(mole.Kelvin)
+temperature = 298  # Kelvin
+# We are dealing with small values that _should_ fit in an IEEE double precision float, but we use BigFloat throughout
+# for certainty
+bigfloatPrecision = 100
+
+
+# The basic approach of this script is to recursively read all directories in the jobs_dir and mark whether they belong
+# to the protein/site range/epitope selected for analysis.  Each selected job directory is then represented by a
+# MutationEvaluator object which performs lazy evaluation of various values for the amino acid substitution represented
+# by that job directory.  Then, the Structural Entropy (or displacement) for each epitope or site range is processed
+# by invoking the relevant MutationEvaluators, which use cached computations if the site has already been accessed by
+# another epitope or site range.
 
 def main():
 	global args
 	args = parser.parse_args()
 
 	initJobsDirs()
+
+	if args.energy_map:
+		energy_map()
+		exit(0)
 
 	results = []
 	has_epitopes = False
@@ -115,6 +163,43 @@ def scan():
 		for protein in proteins.keys():
 			results.extend(scan_protein(protein))
 		return results
+
+
+def energy_map():
+	bannedList = ['X','B','Z']
+	aaCodes = sorted([v for v in codes.values() if v not in bannedList])
+	energies = {wt:{mutation:[] for mutation in aaCodes} for wt in aaCodes}
+	for evaluator in evaluators.values():
+		if evaluator.wt in bannedList or evaluator.mutation in bannedList:
+			continue
+		if args.protein is not None and evaluator.protein != args.protein:
+			continue
+		if args.epitope is not None:
+			epitopeRecord = proteins[evaluator.protein][args.epitope]
+			if evaluator.site < epitopeRecord.first or evaluator.site > epitopeRecord.last:
+				continue
+		try:
+			energy = evaluator.energyDelta
+		except Exception as e:
+			print_exc()
+			print 'energy_map is ignoring the bad data.'
+			continue
+		if args.baseline == 'absolute':
+			energy = abs(energy)
+		energies[evaluator.wt][evaluator.mutation].append(energy)
+	if args.csv_filename:
+		with open(args.csv_filename,'wb') as f:
+			out = csv.writer(f)
+			out.writerow(['WT \ Mutation']+aaCodes)
+			for wt in aaCodes:
+				out.writerow( [wt] + [mean(energies[wt][mutation]) for mutation in aaCodes] )
+	else:
+		print 'WT \ Mutation \t'+'\t'.join(aaCodes)
+		for wt in aaCodes:
+			print wt,
+			for mutation in aaCodes:
+				print '\t'+str(),
+			print
 
 
 def scan_protein(proteinName):
@@ -229,8 +314,8 @@ proteinToPdb = { protein:pdbPath.split('/')[-1] for protein,pdbPath in pdbs.iter
 
 
 class MutationEvaluator(object):
-
 	""" evaluates a single job directory which represents a single site mutation """
+
 	def __init__(self,directory,protein,site,mutation,wt):
 		self.initialized = False
 		self.directory = directory
@@ -390,6 +475,8 @@ def mean(list):
 
 
 class SiteResults:
+	"""This uses the MutationEvaluators for the current site to calculate site-wide metrics like its Boltzmann Distribution"""
+
 	instances = {}
 
 	@classmethod
@@ -460,6 +547,8 @@ class SiteResults:
 
 
 class RangeResults:
+	"""Computes Structural Entropy for a range of sites"""
+
 	def __init__(self, proteinName, first, last):
 		self.proteinName = proteinName
 		self.siteResults = []
@@ -484,6 +573,8 @@ class RangeResults:
 
 
 class EpitopeResults(RangeResults):
+	"""Uses RangeResults to Structural Entropy for a given epitope"""
+
 	def __init__(self, proteinName, epitopeName):
 		self.proteinName = proteinName
 		self.epitopeName = epitopeName
@@ -500,6 +591,8 @@ class EpitopeResults(RangeResults):
 
 
 class ProteinResults:
+	"""Compares SE results for an entire protein against the reference data from Florencia et al"""
+
 	def __init__(self, proteinName):
 		self.proteinName = proteinName
 		protein = get_protein(proteinName)
@@ -531,6 +624,7 @@ def get_epitope(protein, epitopeName):
 
 
 def r_squared(pairs): # pass a list of tuples [ (x1,y1), (x2,y2), … ]
+	"""r-squared computation used to measure correlation of our results with Pereyra et al"""
 	num = len(pairs)
 	avgX = sum([x for x, y in pairs]) / num
 	avgY = sum([y for x, y in pairs]) / num

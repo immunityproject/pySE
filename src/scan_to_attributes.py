@@ -1,3 +1,8 @@
+#!/usr/bin/python
+
+# This script takes the output of `compute_shannon_entropy.py --scan xx --csv yyy` and creates a Swiss PDB Viewer
+# attribute file containing the Structural Entropies for each site.
+
 import argparse, csv
 
 parser = argparse.ArgumentParser()
