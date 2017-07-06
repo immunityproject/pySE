@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# coding=utf-8
+#
+# Deprecated, see generate_buildmodel.py for updated version.
+
 import sys
 import uuid
 import os
@@ -136,8 +141,6 @@ def readPDB_atom(filename):
 							print "Found an error on the following line:"
 							print line
 
-						# else:
-						# print "I skipped a line because it didn't start with ATOM"
 				except Exception:
 					print "The following line was malformed:"
 					print line
@@ -234,7 +237,6 @@ def dump_all_chain(first_loc, amino_dic):
 				print current_try,
 				print ":",
 				print amino_dic[first_loc + current_try - 1].code
-			# print "Trying position:" + str(first_loc+current_try-1)
 			if (amino_dic[first_loc + current_try - 1].code):
 				hits = hits + 1
 				full_chain = full_chain + amino_dic[first_loc + current_try - 1].code
@@ -250,9 +252,6 @@ def dump_all_chain(first_loc, amino_dic):
 
 
 def main():
-	#	for i in xrange(15):
-	#		print uuid.uuid4()
-	#
 	root = "./"
 	generateDistributableDirs = 0
 
