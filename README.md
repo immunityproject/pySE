@@ -26,7 +26,16 @@ you have installed your platform's MPFR development package.
 sudo apt-get install libmpfr-dev
 ```
 
-** todo ** how to download and install data files
+## Data
+
+The PDB files used for Structural Entropy calculations in _HIV Control Is Mediated in Part by CD8+ T-Cell Targeting of
+Specific Epitopes_ by Pereyra, Heckerman et al. and _Validation of a Previously Described Protein Folding Model Applicable to a CTL HIV Vaccine Design_ by Rubsamen et al. are supplied in this repository inside the /data directory.
+
+These PDBs were first downloaded from the protein database at https://www.rcsb.org/pdb/home/home.do, then mutated to match NL4-3 reference strain, and repaired with FoldX.
+
+PDB attributes for the included PDBs have been pre-added to `proteins.py` for easy use.  New proteins must have the corresponding variables in `proteins.py` populated to work with this software framework.
+
+The final results for running the PDBs found in the `/data` directory can be found at https://github.com/immunityproject/HIV-SE.  Please be aware that this is a large repository.
 
 
 ## Usage
@@ -116,5 +125,5 @@ the Boltzmann Constant and ambient temperature, etc.
 * **generate_mutant_string.py** - Deprecated script, replaced with buildmodel.  Performed replacements with FoldX's positionscan command, and did direct parsing of PDBs. 
 * **proteins.py** - Settings and configuration variables for other scripts.
 * **scan_foldx_jobs.py** - Examine running FoldX job directories to determine status.
-* **scan_to_attributes.py** -
+* **scan_to_attributes.py** - Generate necessary data for Structural Entropy heatmap visualizations.
 
