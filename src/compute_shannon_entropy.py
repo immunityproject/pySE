@@ -95,17 +95,21 @@ def main():
 
 	initJobsDirs()
 
+	# energy map is a separate mode
 	if args.energy_map:
 		energy_map()
 		exit(0)
 
+	# the results array holds tuples of result data for output either as CSV or to console
 	results = []
 	has_epitopes = False
 	has_ranges = False
 
+	# this sets up the output files
 	if args.csv_filename:
 		setup_entropy_csv()
 
+	# scan is a separate mode
 	if args.scan:
 		results.extend(scan())
 		has_ranges = True
@@ -114,10 +118,12 @@ def main():
 		if args.protein is None:
 			print >> sys.stderr, 'If you specify --epitope, you must also specify --protein'
 			parser.usage()
+		# EpitopeResults handles the cached calculations
 		results.append(EpitopeResults(args.protein,args.epitope))
 		has_epitopes = True
 
 	elif args.protein is not None and args.epitope is None:
+		# ProteinResults handles the cached calculations
 		results.append(ProteinResults(args.protein))
 		has_epitopes = True
 
@@ -126,6 +132,7 @@ def main():
 			print >> sys.stderr, 'If you specify --sites, you must also specify --protein'
 			parser.usage()
 		first, last = (int(i) for i in args.sites.split('-'))
+		# RangeResults handles the cached calculations
 		results.append(RangeResults(args.protein,first,last))
 
 	else: # all proteins & epitopes
@@ -133,7 +140,7 @@ def main():
 		for proteinName in proteins.keys():
 			results.append(ProteinResults(proteinName))
 
-
+	# output results
 	if args.csv_filename:
 		output_csv(results,has_epitopes,has_ranges)
 	else:
@@ -156,6 +163,7 @@ def setup_entropy_csv():
 
 
 def scan():
+	"""runs through all sites within the ranges specified by command-line args and accumulates the calculation results"""
 	if args.protein:
 		return scan_protein(args.protein)
 	else:
@@ -166,7 +174,7 @@ def scan():
 
 
 def energy_map():
-	bannedList = ['X','B','Z']
+	bannedList = ['X','B','Z'] # these aminos are ignored
 	aaCodes = sorted([v for v in codes.values() if v not in bannedList])
 	energies = {wt:{mutation:[] for mutation in aaCodes} for wt in aaCodes}
 	for evaluator in evaluators.values():
@@ -393,6 +401,7 @@ def initJobsDirs():
 
 
 def checkJobsDir(pdbToProtein, dirname, filenames):
+	"""Looks for FoldX job files in the directory and creates a MutationEvaluator for the directory"""
 	list_file_path = os.path.join(dirname, 'list.txt')
 	if not os.path.exists(list_file_path):
 		# no list.txt file, so this is not a job directory.
@@ -419,6 +428,8 @@ def checkJobsDir(pdbToProtein, dirname, filenames):
 
 def analyze_displacement(original_pdb, mutated_pdb):
 	"""
+	This mode computes the sum of squared displacements across all sites in the protein due to the mutation.
+
 	:param original_pdb: file-like of the original PDB file
 	:param mutated_pdb: file-like of the mutated PDB file
 	:return: a single non-negative float which represents the sum of squared displacements caused by the mutation
@@ -442,7 +453,7 @@ def analyze_displacement(original_pdb, mutated_pdb):
 
 
 def read_positions(file):
-	""" reads x,y,z positions for each atom in a PDB file """
+	""" used by analyze_displacement.  reads x,y,z positions for each atom in a PDB file """
 	result = {}
 	def stripstr(v):
 		return str(v).strip()
@@ -497,6 +508,7 @@ class SiteResults:
 		proteinKey = proteinName.upper()
 		if args.debug:
 			print 'Site %s %d Results'%(proteinName,site)
+		# Collect all MutationEvaluators for this site
 		for mutation in mutations:
 			if mutation not in ['B','Z','X']:
 				evaluator = evaluators.get((proteinKey, site, mutation))
@@ -505,6 +517,7 @@ class SiteResults:
 		if args.debug:
 			for ev in self.evaluators:
 				print '%s %s %s energy: %.3f'%(ev.protein,ev.site,ev.mutation,ev.energyDelta)
+		# Collect energy deltas for the Boltzmann Distribution
 		self.energies = [ev.energyDelta for ev in self.evaluators] # todo different baselines.  currently only ddE
 		if args.baseline == 'absolute':
 			self.energies = [abs(e) for e in self.energies]
@@ -513,6 +526,7 @@ class SiteResults:
 		else:
 			print >> sys.stderr, 'Unknown baseline method: %s'%args.baseline
 			parser.usage()
+		# Displacements
 		self.displacements = [ev.displacement for ev in self.evaluators if ev.displacement is not None]
 		if len(self.displacements):
 			self.averageDisplacement = mean(self.displacements)
@@ -520,6 +534,7 @@ class SiteResults:
 			if args.displacement:
 				print >> sys.stderr, 'Warning: no displacement data for %s %d' % (self.proteinName,self.site)
 			self.averageDisplacement = None
+		# Compute boltzmann distribution from energy deltas
 		if args.include_wt:
 			hasWt = False
 			for ev in self.evaluators:
@@ -538,10 +553,12 @@ class SiteResults:
 			self.entropy = None
 		if args.debug and self.entropy is not None:
 			print 'entropy %.3f'%self.entropy
+		# Validate that we have one evaluator/job directory for every amino acid mutation
 		num_evaluators = len(self.evaluators)
 		if num_evaluators != 19 and not args.include_wt or num_evaluators != 20 and args.include_wt:
 			print >> sys.stderr, 'Warning: %s site %d only had %d mutations: %s'%\
 			                     (proteinName, site, num_evaluators, [ev.mutation for ev in self.evaluators])
+		# If CSV is selected, output per-site data to the site results file
 		if csv_site_results is not None:
 			csv_site_results.writerow((proteinName, site, self.entropy, self.averageDisplacement))
 
@@ -559,12 +576,14 @@ class RangeResults:
 				self.siteResults.append( SiteResults.instance(proteinName,site) )
 			except Exception, e:
 				print >> sys.stderr, 'Warning: ignoring %s %d due to errors'%(proteinName,site)
+		# Collect entropies from every site in the range
 		entropies = [ev.entropy for ev in self.siteResults if ev.entropy is not None]
 		if len(entropies) > 0:
 			self.averageEntropy = mean(entropies)
 		else:
 			self.averageEntropy = None
 
+		# Average displacement for a range
 		self.displacements = [ev.averageDisplacement for ev in self.siteResults if ev.averageDisplacement is not None]
 		if len(self.displacements) > 0:
 			self.averageDisplacement = mean(self.displacements)
@@ -573,7 +592,7 @@ class RangeResults:
 
 
 class EpitopeResults(RangeResults):
-	"""Uses RangeResults to Structural Entropy for a given epitope"""
+	"""Uses RangeResults to compute Structural Entropy for a given epitope"""
 
 	def __init__(self, proteinName, epitopeName):
 		self.proteinName = proteinName
@@ -643,7 +662,7 @@ def compute_entropy(probabilities):
 	# where
 	#  P_i is the probability of sample i
 	#  log_b is log-base-b
-	# It is not clear in the Heckerman paper what units were used, so we try the two most common bases: 2 and e
+	# It is not clear in the Pereyra paper what units were used, so we try the two most common bases: 2 and e
 	entropy = 0.0
 	for probability in probabilities:
 		entropy -= probability * bigfloat.log(probability) # base e: entropy measured in nats
