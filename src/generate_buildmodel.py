@@ -132,7 +132,7 @@ def main():
 	#for other proteins this is AB match vs CD match.
 	#most of the time we will only have one group.
 	#select the first element as the representitive chain for generation.
-	#tweaking this here would result in less errors, but changes in overall energy.  Jonathan reported he just ignored problem sections.
+	#tweaking this here would result in less errors, but changes in overall energy.  
 	rep_chain_number = ord(proteins[protein].values()[0]['chains'][0])-65
 
 	print "Selecting Rep chain number: " + str(rep_chain_number)

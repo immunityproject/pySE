@@ -4,8 +4,6 @@ A collection of python tools used to explore structural entropy, a novel approac
 
 This repository contains everything required for data preparation, parallel protein folding orchestration, and result analysis.
 
-Questions/inquiries please visit: https://www.immunityproject.org/
-
 
 ## Install
 
