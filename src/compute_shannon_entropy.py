@@ -65,7 +65,9 @@ parser.add_argument('--tab-delimited',dest='tab_delimited',action='store_true',
 parser.add_argument('--scan',type=int,metavar='WINDOW_WIDTH',
 						  help='Computes SE\'s for a sliding window across all sites.  WINDOW_WIDTH is the number of sites in the sliding window.')
 parser.add_argument('--energy-map',action='store_true',
-						  help='Compute the matrix of average energy deltas for all possible amino acid substitutions')
+						  help='Compute average energy deltas of all possible amino acid substitutions vs WT')
+parser.add_argument('--energies',action='store_true',
+						  help='outputs the raw energy delta data')
 parser.add_argument('jobs_dir') # where to find the jobs directories with FoldX results
 
 
@@ -85,9 +87,10 @@ bigfloatPrecision = 100
 # The basic approach of this script is to recursively read all directories in the jobs_dir and mark whether they belong
 # to the protein/site range/epitope selected for analysis.  Each selected job directory is then represented by a
 # MutationEvaluator object which performs lazy evaluation of various values for the amino acid substitution represented
-# by that job directory.  Then, the Structural Entropy (or displacement) for each epitope or site range is processed
-# by invoking the relevant MutationEvaluators, which use cached computations if the site has already been accessed by
-# another epitope or site range.
+# by that job directory.  The Structural Entropy (or displacement) for each epitope or site range is accessed
+# by invoking the relevant MutationEvaluators, which use cached computations if the site has already been processed by
+# another epitope or site range.  Since many epitopes overlap, this caching structure speeds up computation
+# considerably.
 
 def main():
 	global args
@@ -139,6 +142,13 @@ def main():
 		has_epitopes = True
 		for proteinName in proteins.keys():
 			results.append(ProteinResults(proteinName))
+
+	if args.energies: # output raw energy data
+		if args.csv_filename:
+			output_energies_csv(results)
+		else:
+			outputEnergies(results)
+		return
 
 	# output results
 	if args.csv_filename:
@@ -316,6 +326,29 @@ def output_range_result_csv(rr, out):
 	       avgE,entropies[0],entropies[1],entropies[2],
 	       avgD,displacements[0],displacements[1],displacements[2])
 	out.writerow(row)
+
+
+def output_energies_csv(results):
+	if args.tab_delimited: dialect='excel-tab'
+	else: dialect='excel'
+	with open(args.csv_filename + '-energies.csv', 'wb') as outfile:
+		csvfile = csv.writer(outfile, dialect=dialect)
+		csvfile.writerow('protein','site','wt','mutation','deltaE')
+		def writeline(items):
+			csvfile.writerow(items)
+		outputEnergies(results, writeline)
+
+
+def writeStdout(items):
+	print('\t'.join(items))
+
+
+def outputEnergies(results, writeline=writeStdout):
+	for result in results:
+		for site in result.siteResults:
+			for mutation in site.evaluators:
+				items = (mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
+				writeline(items)
 
 
 proteinToPdb = { protein:pdbPath.split('/')[-1] for protein,pdbPath in pdbs.iteritems() }
@@ -504,7 +537,7 @@ class SiteResults:
 	def __init__(self,proteinName,site):
 		self.proteinName = proteinName
 		self.site = site
-		self.evaluators = []
+		self.evaluators = [] # MutationEvaluators
 		proteinKey = proteinName.upper()
 		if args.debug:
 			print 'Site %s %d Results'%(proteinName,site)
