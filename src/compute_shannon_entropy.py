@@ -333,7 +333,7 @@ def output_energies_csv(results):
 	else: dialect='excel'
 	with open(args.csv_filename + '-energies.csv', 'wb') as outfile:
 		csvfile = csv.writer(outfile, dialect=dialect)
-		csvfile.writerow('protein','site','wt','mutation','deltaE')
+		csvfile.writerow(('protein','site','wt','mutation','deltaE'))
 		def writeline(items):
 			csvfile.writerow(items)
 		outputEnergies(results, writeline)
