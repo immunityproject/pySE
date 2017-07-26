@@ -344,11 +344,17 @@ def writeStdout(items):
 
 
 def outputEnergies(results, writeline=writeStdout):
-	for result in results:
+	def handleRangeResults(results):
 		for site in result.siteResults:
 			for mutation in site.evaluators:
 				items = (mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
 				writeline(items)
+	for result in results:
+		if type(result) is ProteinResults:
+			for eresult in result.epitopeResults:
+				handleRangeResults(eresult)
+		else:
+			handleRangeResults(result)
 
 
 proteinToPdb = { protein:pdbPath.split('/')[-1] for protein,pdbPath in pdbs.iteritems() }
