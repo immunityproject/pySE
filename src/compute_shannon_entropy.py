@@ -364,7 +364,6 @@ def outputEnergies(results, writeline=writeStdout):
 	sorted_wl_queue =  sorted(writeline_queue, key=str.lower)
 	#writeline(sorted_wl_queue)
 	for entry in sorted_wl_queue:
-		print entry
 		writeline(tuple(entry.split(",")))
 
 
