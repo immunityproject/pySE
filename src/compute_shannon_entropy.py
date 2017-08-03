@@ -344,18 +344,28 @@ def writeStdout(items):
 
 
 def outputEnergies(results, writeline=writeStdout):
+	writeline_queue = []
 	def handleRangeResults(result):
-		print result
 		for site in result.siteResults:
 			for mutation in site.evaluators:
-				items = (mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
-				writeline(items)
+				#items = (mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
+				#writeline(items)
+				items = "{0},{1},{2},{3},{4}".format(mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
+				writeline_queue.append(items)
 	for result in results:
 		if isinstance(result, ProteinResults):
 			for eresult in result.epitopeResults:
 				handleRangeResults(eresult)
 		else:
 			handleRangeResults(result)
+
+	#sort results
+	print writeline_queue
+	sorted_wl_queue =  sorted(writeline_queue, key=str.lower)
+	#writeline(sorted_wl_queue)
+	for entry in sorted_wl_queue:
+		print entry
+		writeline(tuple(entry.split(",")))
 
 
 proteinToPdb = { protein:pdbPath.split('/')[-1] for protein,pdbPath in pdbs.iteritems() }
