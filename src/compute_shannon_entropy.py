@@ -344,13 +344,14 @@ def writeStdout(items):
 
 
 def outputEnergies(results, writeline=writeStdout):
-	def handleRangeResults(results):
+	def handleRangeResults(result):
+		print result
 		for site in result.siteResults:
 			for mutation in site.evaluators:
 				items = (mutation.protein,mutation.site,mutation.wt,mutation.mutation,mutation.energyDelta)
 				writeline(items)
 	for result in results:
-		if type(result) is ProteinResults:
+		if isinstance(result, ProteinResults):
 			for eresult in result.epitopeResults:
 				handleRangeResults(eresult)
 		else:
