@@ -15,6 +15,7 @@ import functools
 
 import math
 import os
+import json
 import re
 import sys
 import csv
@@ -95,6 +96,8 @@ bigfloatPrecision = 100
 @click.option('--csv-file', '-c', default=None,
               help=('Base pathname (without extension) for a CSV dump of the'
                     ' results'))
+@click.option('--json/--no-json', default=False,
+              help='Generate json results in addition to csv')
 @click.option('--header/--no-header', default=True,
               help='Include or exclude the header row from the CSV files')
 @click.option('--tab-delimited', default=False,
@@ -109,7 +112,7 @@ bigfloatPrecision = 100
               help='outputs the raw energy delta data')
 @click.argument('jobs_dir')
 def main(debug, quiet, protein, sites, epitope, displacement, baseline,
-         exclude_wt, csv_file, header, tab_delimited, scan, energy_map,
+         exclude_wt, csv_file, json, header, tab_delimited, scan, energy_map,
          energies, jobs_dir):
     include_wt = not exclude_wt
     initJobsDirs(jobs_dir, include_wt, displacement, debug)
@@ -138,7 +141,7 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
     elif epitope is not None:
         if protein is None:
             eprint('If you specify --epitope, you must also specify --protein')
-            click.print_help_msg()
+            click.get_current_context().get_help()
             return
         # EpitopeResults handles the cached calculations
         results.append(EpitopeResults(protein, epitope, debug, baseline,
@@ -154,7 +157,7 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
     elif sites:
         if not protein:
             eprint('If you specify --sites, you must also specify --protein')
-            click.print_help_msg()
+            click.get_current_context().get_help()
             return
         first, last = (int(i) for i in sites.split('-'))
         # RangeResults handles the cached calculations
@@ -181,6 +184,19 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
     else:
         output(results)
 
+    if json:
+        output_json(results, csv_file)
+
+def output_json(results, filename):
+    """Output all results as machine-parseable json files
+
+    :param results: the results array
+    :param filename: the output filename prefix
+
+    FIXME: The following is very naive and unlikely to work.
+    """
+    with open('{}.json'.format(filename), 'wb') as outfile:
+        json.dump(outfile, results)
 
 csv_entropies_file = None  # file object
 csv_site_results = None  # csv writer
@@ -679,7 +695,7 @@ class SiteResults:
             pass
         else:
             eprint('Unknown baseline method: %s' % baseline)
-            click.print_help_msg()
+            click.get_current_context().get_help()
             raise IOError('Unknown baseline method: %s' % baseline)
         # Displacements
         self.displacements = [ ev.displacement for ev in self.evaluators
