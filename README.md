@@ -1,8 +1,10 @@
 # pySE - Python Structural Entropy
 
-A collection of python tools used to explore structural entropy, a novel approach to identifying epitope vaccine targets.
+A collection of python tools used to explore structural entropy, a
+novel approach to identifying epitope vaccine targets.
 
-This repository contains everything required for data preparation, parallel protein folding orchestration, and result analysis.
+This repository contains everything required for data preparation,
+parallel protein folding orchestration, and result analysis.
 
 Questions/inquiries please contact reidrubsamen@alum.mit.edu.
 
@@ -11,31 +13,69 @@ Questions/inquiries please contact reidrubsamen@alum.mit.edu.
 
 Quickstart (Ubuntu):
 
-We recommend using [virtualenv](https://github.com/pypa/virtualenv) to help separate project dependencies.
+We recommend using [pip](https://pip.pypa.io/en/stable/installing/) and
+[virtualenvwrapper](https://pypi.python.org/pypi/virtualenvwrapper) to
+help separate project dependencies.
 
 
 ```
 sudo apt-get install python python-pip
-git clone https://github.com/immunityproject/pySE
-pip install -r pySE/requirements.txt
+pip install --user virtualenvwrapper
+```
+
+Now add the following to your shell variables (typically
+`~/.bash_profile`, but you can also run the following commands
+manually):
+
+```
+export PATH=~/.local/bin:$PATH # To put local pip installs in your path
+export VIRTUALENV_PYTHON=/usr/bin/python # We require python2.7, not 3
+export WORKON_HOME=~/Envs # Path to installed dependencies for each virtual env
+export PROJECT_HOME=~/ # Path to where you store your python source
+source .local/bin/virtualenvwrapper.sh
+```
+
+Now you can install pySE:
+
+```
+git clone https://github.com/immunityproject/pySE ~/pySE
+mkproject -f ~/pySE
+pip install -e .
 ```
 
 If you encounter problems compiling the `bigfloat` package, make sure
-you have installed your platform's MPFR development package.
+you have installed your platform's MPFR development package and rerun the
+`pip install -e .` command:
+
 ```
 sudo apt-get install libmpfr-dev
+workon pySE
+pip install -e
 ```
+
+You can now always load pySE by typing `workon pySE`.
 
 ## Data
 
-The PDB files used for Structural Entropy calculations in _HIV Control Is Mediated in Part by CD8+ T-Cell Targeting of
-Specific Epitopes_ by Pereyra, Heckerman et al. and _Validation of a Previously Described Protein Folding Model Applicable to a CTL HIV Vaccine Design_ by Rubsamen et al. are supplied in this repository inside the /data directory.
+The PDB files used for Structural Entropy calculations in _HIV Control
+Is Mediated in Part by CD8+ T-Cell Targeting of Specific Epitopes_ by
+Pereyra, Heckerman et al. and _Validation of a Previously Described
+Protein Folding Model Applicable to a CTL HIV Vaccine Design_ by
+Rubsamen et al. are supplied in this repository inside the /data
+directory.
 
-These PDBs were first downloaded from the protein database at https://www.rcsb.org/pdb/home/home.do, then mutated to match NL4-3 reference strain, and repaired with FoldX.
+These PDBs were first downloaded from the protein database at
+https://www.rcsb.org/pdb/home/home.do, then mutated to match NL4-3
+reference strain, and repaired with FoldX.
 
-PDB attributes for the included PDBs have been pre-added to `proteins.py` for easy use.  New proteins must have the corresponding variables in `proteins.py` populated to work with this software framework.
+PDB attributes for the included PDBs have been pre-added to
+`proteins.py` for easy use.  New proteins must have the corresponding
+variables in `proteins.py` populated to work with this software
+framework.
 
-The final results for running the PDBs found in the `/data` directory can be found at https://github.com/immunityproject/HIV-SE.  Please be aware that this is a large repository.
+The final results for running the PDBs found in the `/data` directory
+can be found at https://github.com/immunityproject/HIV-SE.  Please be
+aware that this is a large repository.
 
 
 ## Usage
@@ -111,19 +151,36 @@ the Boltzmann Constant and ambient temperature, etc.
 ## Directory Structure
 
 
-* **data/** - processed data, such as the output from FoldX PDB analysis via *SequenceOnly* command
-*  **pdbs/** - Raw PDB files.  These are the PDBs referenced in our papers.  It is usually required to perform some data cleaning and repair for each PDB if working with new material.
-*  **src/** - Python tasks for working with PDBs, generating FoldX jobs, and calculating Structural Entropy
+* **data/** - processed data, such as the output from FoldX PDB
+    analysis via *SequenceOnly* command
+* **pdbs/** - Raw PDB files.  These are the PDBs referenced in our
+     papers.  It is usually required to perform some data cleaning and
+     repair for each PDB if working with new material.
+* **pyse/** - Python tasks for working with PDBs, generating FoldX
+     jobs, and calculating Structural Entropy
 
 
-## src/ scripts
-* **best_match.py** - Given an epitope amino sequence or file containing many amino sequences, search all known proteins for close matches for this sequence.  Output chain specific offsets for epitope start and finish and a confidence value.
-* **clean_lockfiles.py** - Search all FoldX task directories and clear lockfiles, resetting these tasks for work.
-* **compute_shannon_entropy.py** -  Computes Structural Entropy for a given epitope and protein, once the FoldX substitution tasks are finished.
-* **convert_foldx_output_directories_to_csv.py** - Collects energy change results from all FoldX directories into a CSV file.
-* **generate_buildmodel.py** - Given a protein name, generate a set of FoldX compatible run directories which replace the current WT with each other possible amino for all relevant chains.
-* **generate_mutant_string.py** - Deprecated script, replaced with buildmodel.  Performed replacements with FoldX's positionscan command, and did direct parsing of PDBs. 
+## pyse/ scripts
+* **best_match.py** - Given an epitope amino sequence or file
+    containing many amino sequences, search all known proteins for
+    close matches for this sequence.  Output chain specific offsets
+    for epitope start and finish and a confidence value.
+* **clean_lockfiles.py** - Search all FoldX task directories and clear
+    lockfiles, resetting these tasks for work.
+* **compute_shannon_entropy.py** - Computes Structural Entropy for a
+    given epitope and protein, once the FoldX substitution tasks are
+    finished.
+* **convert_foldx_output_directories_to_csv.py** - Collects energy
+    change results from all FoldX directories into a CSV file.
+* **generate_buildmodel.py** - Given a protein name, generate a set of
+    FoldX compatible run directories which replace the current WT with
+    each other possible amino for all relevant chains.
+* **generate_mutant_string.py** - Deprecated script, replaced with
+    buildmodel.  Performed replacements with FoldX's positionscan
+    command, and did direct parsing of PDBs.
 * **proteins.py** - Settings and configuration variables for other scripts.
-* **scan_foldx_jobs.py** - Examine running FoldX job directories to determine status.
-* **scan_to_attributes.py** - Generate necessary data for Structural Entropy heatmap visualizations.
+* **scan_foldx_jobs.py** - Examine running FoldX job directories to
+    determine status.
+* **scan_to_attributes.py** - Generate necessary data for Structural
+    Entropy heatmap visualizations.
 
