@@ -196,7 +196,7 @@ def output_json(results, filename):
     FIXME: The following is very naive and unlikely to work.
     """
     with open('{}.json'.format(filename), 'wb') as outfile:
-        json.dump(outfile, results)
+        json.dump(results, outfile)
 
 csv_entropies_file = None  # file object
 csv_site_results = None  # csv writer
