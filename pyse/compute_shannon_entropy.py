@@ -27,6 +27,8 @@ from bigfloat import BigFloat
 
 from proteins import proteins, pdbs, codes
 
+from collections import defaultdict
+
 # Define and error printing function in lieu of logging api
 eprint = functools.partial(print, file=sys.stderr)
 
@@ -187,6 +189,56 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
     if json:
         output_json(results, csv_file)
 
+def dump_energies(range_results):
+    rr = range_results
+    energies = defaultdict(dict)
+    for site in rr.siteResults:
+        for mutation in site.evaluators:
+            energies[mutation.protein][mutation.site] = {
+                "wt": str(mutation.wt),
+                "mutation": str(mutation.mutation),
+                "energyDelta": str(mutation.energyDelta)
+            }
+    return energies
+
+def dump_entropies(site_results):
+    return sorted([str(sr.entropy) for sr in site_results
+                   if sr.entropy is not None])
+
+def dump_displacements(site_results):
+    return sorted([str(sr.averageDisplacement) for sr in site_results
+                   if sr.averageDisplacement is not None])
+
+def dump_EpitopeResult(epitope_result, output):
+    er = epitope_result
+
+    output[er.proteinName][er.epitopeName] = {
+        "avgE": str(er.averageEntropy),
+        "entropies": dump_entropies(er.siteResults),
+        "avgD": str(er.averageDisplacement),
+        "displacements": dump_displacements(er.siteResults),
+        "energies": dump_energies(epitope_result)
+    }
+    return output
+
+def dump_ProteinResult(protein_result, output):
+    """Update and return the given output dict with the given protein_result"""
+    for er in protein_result.epitopeResults:
+        output = dump_EpitopeResult(er, output)
+    return output
+
+def dump_RangeResult(range_result, output):
+    rr = range_result
+    output[rr.proteinName]['{}-{}'.format(rr.first, rr.last)] = {
+        "avgE": str(rr.averageEntropy),
+        "entropies": dump_entropies(rr.siteResults),
+        "avgD": str(rr.averageDisplacement),
+        "displacements": dump_displacements(rr.siteResults),
+        "energies": dump_energies(range_result)
+    }
+    return output
+
+
 def output_json(results, filename):
     """Output all results as machine-parseable json files
 
@@ -195,8 +247,25 @@ def output_json(results, filename):
 
     FIXME: The following is very naive and unlikely to work.
     """
+    outputs = defaultdict(dict)
+    # If the results are one of the various results classes, parse into a dict
+    # FIXME: We could improve this by aggregating results into a single object
+    #        or by passing an output buffer to print results if they
+    #        don't fit in memory
+    for r in results:
+        if isinstance(results[0], SiteResults):
+            raise IOError('Unimplemented!')
+        elif isinstance(results[0], EpitopeResults):
+            outputs = dump_EpitopeResult(r, outputs)
+        elif isinstance(results[0], RangeResults):
+            outputs = dump_RangeResult(r, outputs)
+        elif isinstance(results[0], ProteinResults):
+            outputs = dump_ProteinResult(r, outputs)
+        else:
+            outputs.append(r)
+
     with open('{}.json'.format(filename), 'wb') as outfile:
-        json.dump(results, outfile)
+        json.dump(outputs, outfile)
 
 csv_entropies_file = None  # file object
 csv_site_results = None  # csv writer
@@ -824,9 +893,9 @@ def get_protein(proteinName):
     try:
         return proteins[proteinName.upper()]
     except KeyError:
-        print >> sys.stderr, "Invalid protein name: " + proteinName
-        print >> sys.stderr, "Valid protein names: " + \
-            ', '.join(proteins.keys())
+        eprint("Invalid protein name: " + proteinName)
+        eprint("Valid protein names: " +
+               ', '.join(proteins.keys()))
         exit(1)
 
 
@@ -834,9 +903,9 @@ def get_epitope(protein, epitopeName):
     try:
         return protein[epitopeName.upper()]
     except KeyError:
-        print >> sys.stderr, "Invalid epitope name: " + epitopeName
-        print >> sys.stderr, "Valid epitope names in protein: " + \
-            ', '.join(protein.keys())
+        eprint("Invalid epitope name: " + epitopeName)
+        eprint("Valid epitope names in protein: " +
+               ', '.join(protein.keys()))
         exit(1)
 
 
