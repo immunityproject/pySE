@@ -194,11 +194,13 @@ def dump_energies(range_results):
     energies = defaultdict(dict)
     for site in rr.siteResults:
         for mutation in site.evaluators:
-            energies[mutation.protein][mutation.site] = {
+            mutations = energies[mutation.protein].get(mutation.site, [])
+            mutations.append({
                 "wt": str(mutation.wt),
                 "mutation": str(mutation.mutation),
                 "energyDelta": str(mutation.energyDelta)
-            }
+            })
+            energies[mutation.protein][mutation.site] = mutations
     return energies
 
 def dump_entropies(site_results):
