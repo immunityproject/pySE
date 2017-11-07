@@ -40,7 +40,7 @@ Now you can install pySE:
 
 ```
 git clone https://github.com/immunityproject/pySE ~/pySE
-mkproject -f ~/pySE
+mkproject -f pySE
 pip install -e .
 ```
 
