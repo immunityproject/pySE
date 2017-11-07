@@ -30,6 +30,7 @@ manually):
 ```
 export PATH=~/.local/bin:$PATH # To put local pip installs in your path
 export VIRTUALENV_PYTHON=/usr/bin/python # We require python2.7, not 3
+export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python # We require python2.7, not 3
 export WORKON_HOME=~/Envs # Path to installed dependencies for each virtual env
 export PROJECT_HOME=~/ # Path to where you store your python source
 source .local/bin/virtualenvwrapper.sh
