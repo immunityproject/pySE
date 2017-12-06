@@ -150,7 +150,7 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
                                       displacement, include_wt))
         has_epitopes = True
 
-    elif protein and epitope:
+    elif protein:
         # ProteinResults handles the cached calculations
         results.append(ProteinResults(protein, debug, baseline, displacement,
                                       include_wt))
