@@ -20,7 +20,9 @@ import re
 import sys
 import csv
 import click
+import datetime
 from traceback import print_exc
+from multiprocessing import Pool, Manager, cpu_count
 
 import bigfloat
 from bigfloat import BigFloat
@@ -58,7 +60,6 @@ temperature = 298  # Kelvin
 # We are dealing with small values that _should_ fit in an IEEE double
 # precision float, but we use BigFloat throughout for certainty
 bigfloatPrecision = 100
-
 
 # The basic approach of this script is to recursively read all
 # directories in the jobs_dir and mark whether they belong to the
@@ -117,7 +118,11 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
          exclude_wt, csv_file, json, header, tab_delimited, scan, energy_map,
          energies, jobs_dir):
     include_wt = not exclude_wt
+    print("Jobs dir...{}".format(datetime.datetime.now()))
+    sys.stdout.flush()
     initJobsDirs(jobs_dir, include_wt, displacement, debug)
+    print("Done...{}".format(datetime.datetime.now()))
+    sys.stdout.flush()
 
     # energy map is a separate mode
     if energy_map:
@@ -168,6 +173,9 @@ def main(debug, quiet, protein, sites, epitope, displacement, baseline,
 
     else:  # all proteins & epitopes
         has_epitopes = True
+
+        print("Running all proteins...{}".format(datetime.datetime.now()))
+
         for proteinName in proteins.keys():
             results.append(ProteinResults(proteinName, debug, baseline,
                                           displacement, include_wt))
@@ -211,16 +219,32 @@ def dump_displacements(site_results):
     return sorted([str(sr.averageDisplacement) for sr in site_results
                    if sr.averageDisplacement is not None])
 
+def dump_SiteResult(site_result):
+    sr = site_result
+    mutations = defaultdict(dict)
+    mutations['entropy'] = str(sr.entropy)
+    for mutation in sr.evaluators:
+        idx = sr.evaluators.index(mutation)
+        mutations[mutation.wt][mutation.mutation] = {
+            "energy_delta": str(mutation.energyDelta),
+            "displacement": str(mutation.displacement),
+            "boltzman_probability": str(sr.boltzmann_probabilities[idx])
+        }
+
+    return mutations
+
 def dump_EpitopeResult(epitope_result, output):
     er = epitope_result
 
-    output[er.proteinName][er.epitopeName] = {
-        "avgE": str(er.averageEntropy),
-        "entropies": dump_entropies(er.siteResults),
-        "avgD": str(er.averageDisplacement),
-        "displacements": dump_displacements(er.siteResults),
-        "energies": dump_energies(epitope_result)
-    }
+    output[er.proteinName][er.epitopeName] = { sr.site: dump_SiteResult(sr)
+                                               for sr in er.siteResults }
+    # {
+    #     "avgE": str(er.averageEntropy),
+    #     "entropies": dump_entropies(er.siteResults),
+    #     "avgD": str(er.averageDisplacement),
+    #     "displacements": dump_displacements(er.siteResults),
+    #     "energies": dump_energies(epitope_result)
+    # }
     return output
 
 def dump_ProteinResult(protein_result, output):
@@ -541,6 +565,7 @@ class MutationEvaluator(object):
         self.wt = wt
         self.displacement = displacement
         self.debug = debug
+        self.initialize()
 
     def initialize(self):
         if self.initialized:
@@ -604,13 +629,9 @@ class MutationEvaluator(object):
 
         self.initialized = True
 
-    def __getattr__(self, name):
-        if not self.initialized:
-            self.initialize()
-        return super(MutationEvaluator, self).__getattribute__(name)
 
-
-evaluators = {}
+manager = Manager()
+evaluators = manager.dict()
 mutations = codes.values()
 
 
@@ -618,14 +639,39 @@ def initJobsDirs(jobs_dir, include_wt, displacement, debug):
     """ initializes the jobDirs variable """
     pdbToProtein = { pdbPath.split('/')[-1]: protein
                      for protein, pdbPath in pdbs.iteritems() }
+
+    roots = list()
+    filelists = list()
     for root, dirs, files in os.walk(jobs_dir, followlinks=True):
-        checkJobsDir(pdbToProtein, root, files, include_wt, displacement, debug)
+        roots.append(root)
+        filelists.append(files)
+        # checkJobsDir(pdbToProtein, root, files, include_wt, displacement, debug)
+
+    doers = Pool(cpu_count())
+    jobs = zip([pdbToProtein]*len(roots),
+               roots,
+               filelists,
+               [include_wt]*len(roots),
+               [displacement]*len(roots),
+               [debug]*len(roots))
+
+    print("Loading {} evaluators...{}".format(len(roots),
+                                              datetime.datetime.now()))
+    sys.stdout.flush()
+    with click.progressbar(doers.imap_unordered(checkJobsDir, jobs),
+                           length=len(roots), label='Running',
+                           file=sys.stderr) as progbar:
+        for j in progbar:
+            pass
+    print("Done...{}".format(datetime.datetime.now()))
 
 
-def checkJobsDir(pdbToProtein, dirname, filenames, include_wt, displacement,
-                 debug):
+
+
+def checkJobsDir(args):
     """Looks for FoldX job files in the directory and creates a
     MutationEvaluator for the directory"""
+    pdbToProtein, dirname, filenames, include_wt, displacement, debug = args
     list_file_path = os.path.join(dirname, 'list.txt')
     if not os.path.exists(list_file_path):
         # no list.txt file, so this is not a job directory.
@@ -651,8 +697,11 @@ def checkJobsDir(pdbToProtein, dirname, filenames, include_wt, displacement,
                    '%s and %s' % (protein, site, mutation, dirname,
                                   evaluators[evaluatorKey].directory))
         else:
-            evaluators[evaluatorKey] = MutationEvaluator(
-                dirname, protein, site, mutation, wt, displacement, debug)
+            try:
+                evaluators[evaluatorKey] = MutationEvaluator(
+                    dirname, protein, site, mutation, wt, displacement, debug)
+            except Exception as e:
+                eprint("Exception: {}".format(e))
 
 
 def analyze_displacement(original_pdb, mutated_pdb, debug):
