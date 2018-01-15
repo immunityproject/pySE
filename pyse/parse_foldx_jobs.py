@@ -228,9 +228,16 @@ def load_foldx_job(foldx_job):
         except Exception as e:
             eprint('{},Could not load displacements,{}'.format(jobid, e))
 
-    data = defaultdict(dict)
-    data[jobid]['energies'] = energy_deltas
-    # data[jobid]['displacements'] = displacements
+    data = dict()
+    data[jobid] = {
+        'protein': protein,
+        'wt': wt,
+        'site': site,
+        'mutation': mutation,
+        'jobdir': jobdir,
+        'energy_deltas': energy_deltas,
+        'displacements': displacements
+    }
     return data
 
 @click.command()
