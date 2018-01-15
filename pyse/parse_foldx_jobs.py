@@ -11,13 +11,20 @@ A progress bar is output to stderr. Stdout will produce a log of any
 problems found for directories that look like foldx job directories
 but which are missing files or produced errors while processing.
 """
+from __future__ import print_function
+
 import click
+import functools
 import json
 import os
+import re
 import sys
 
 from collections import defaultdict
 from multiprocessing import Pool, cpu_count
+
+# Define and error printing function in lieu of logging api
+eprint = functools.partial(print, file=sys.stderr, flush=True)
 
 proteins = [ 'RT', 'TAT', 'P24', 'INT', 'ZIKA_E', 'PRO', 'P17', 'REV',
              'GP120', 'NEF' ]
@@ -33,39 +40,89 @@ pdb2protein = {
     'tat_3MI9_N.pdb': 'TAT'
 }
 protein2pdb = {v: k for k,v in pdb2protein.items()}
-errstream = sys.stderr
 
 def find_foldx_jobs(directory):
     """
     A directory is considered a foldx job when it contains:
       - list.txt
+      - individual_list.txt
       - A valid pdb name in the list.txt file per pdb2proteins
+      - A parseable wt, site, mutation in individual_list.txt
 
-    Return a list of (protein, jobdir)
+    Return a list of (protein, wt, site, mutation, jobdir). Folders
+    missing list.txt or individual_list.txt files are skipped. We make
+    no guarantees about validity of the jobs. Checking and reporting
+    on that should go elsewhere.
     """
+    individual_list_parser = re.compile(r'(\w)(\w)(\d+)(\w)')
     foldx_jobs = set()
     for root,dirs,files in os.walk(directory):
-        if 'list.txt' not in files:
+        if 'list.txt' not in files or 'individual_list.txt' not in files:
             continue
+
+        protein = None
+        wt = None
+        site = None
+        mutation = None
+        jobdir = None
         with open(os.path.join(root, 'list.txt'), 'r') as listfile:
             pdb = listfile.read().strip()
-            foldx_jobs.add((pdb2protein[pdb], root))
+            protein = pdb2protein[pdb]
+            jobdir = root
+
+        with open(os.path.join(root, 'individual_list.txt')) as indfile:
+            # This will take a line like: EA28E,EB28E,EC28E,ED28E,EE28E,EF28E;
+            # It reads the first element: EA28E
+            # Then EA28E -> wt = E, site = 28, and mutation = E.
+            # NOTE: A is the chain, which shows up again in the .pdb outputs
+            individual_list = indfile.read().strip().split(',')
+            parsed_ind_list = individual_list_parser.match(individual_list[0])
+            wt, site, mutation = parsed_ind_list.group(1, 3, 4)
+
+        foldx_job = (protein, wt, site, mutation, jobdir)
+        foldx_jobs.add(foldx_job)
     return foldx_jobs
 
-def parse_raw_buildmodel(protein, bmdir):
-    pdb = protein2pdb[protein][:-len('.pdb')]
-    rawmodel_fn = os.path.join(bmdir, 'Raw_BuildModel_{}.fxout'.format(pdb))
+def parse_raw_buildmodel(pdb, rawmodel):
+    """Parse a raw buildmodel file, returning a tuple of the energies
+    and wt_energies. We assert that both lists are non-empty and that
+    they are the same length."""
     energies = list()
     wt_energies = list()
-    with open(rawmodel_fn, 'r') as rawmodel:
-        for line in rawmodel.readlines()[9:]:
-            if line.startswith(pdb):
-                energies.append([float(e) for e in line.split('\t')[1:]])
-            elif line.startswith('WT_'):
-                wt_energies.append([float(e) for e in line.split('\t')[1:]])
+    for line in rawmodel.readlines()[9:]:
+        if line.startswith(pdb):
+            energies.append([float(e) for e in line.split('\t')[1:]])
+        elif line.startswith('WT_'):
+            wt_energies.append([float(e) for e in line.split('\t')[1:]])
 
+    assert len(energies) != 0
+    assert len(wt_energies) != 0
     assert len(energies) == len(wt_energies)
+
     return energies, wt_energies
+
+def parse_pdb(pdb):
+    """ Read the x,y,z positions for each atom in a PDB file """
+    positions = []
+
+    def stripstr(v):
+        return str(v).strip()
+    for line in pdb:
+        if not line.startswith('ATOM'):
+            continue
+        # these are specified as inclusive ranges of 1-based
+        # indexes to match the PDB spec
+        fieldspec = [
+            ('atom', 13, 16, stripstr),
+            ('remnant', 18, 20, stripstr),
+            ('chain', 22, 22, stripstr),
+            ('position', 23, 26, int),
+            ('x', 31, 38, float),
+            ('y', 39, 46, float),
+            ('z', 47, 54, float),
+        ]
+        positions.append({f[0]: f[3](line[f[1] - 1:f[2]]) for f in fieldspec})
+    return positions
 
 def mean(list):
     num = len(list)
@@ -73,105 +130,121 @@ def mean(list):
         return float('NaN')
     return sum(list) / num
 
-def load_energy_deltas(protein, directory):
-    energies, wt_energies = parse_raw_buildmodel(protein, directory)
-    return [mean([e - w for e, w in zip(es, ws)])
-            for es, ws in zip(zip(*(energies)),
-                              zip(*(wt_energies)))]
+def calculate_energy_deltas(energies, wt_energies):
+    """Sum the columns in the energies and wt_energies lists and
+    return a collapsed list of the averages
 
+    This code replaces the following zip magic that does the same thing:
 
-def read_pdb_positions(pdbfile):
-    """ used by analyze_displacement.  reads x,y,z positions for each
-    atom in a PDB file """
-    results = []
+      return [mean([e - w for e, w in zip(es, ws)])
+              for es, ws in zip(zip(*(energies)),
+                                zip(*(wt_energies)))]
+    """
+    energy_deltas = [0.0]*len(energies[0])
+    for i in range(0, len(energies)):
+        for j in range(0, len(energies[i])):
+            energy_deltas[j] += (energies[i][j] - wt_energies[i][j])
 
-    def stripstr(v):
-        return str(v).strip()
-    with open(pdbfile, 'r') as pdb:
-        for line in pdb:
-            if not line.startswith('ATOM'):
-                continue
-            # these are specified as inclusive ranges of 1-based
-            # indexes to match the PDB spec
-            fieldspec = [
-                ('atom', 13, 16, stripstr),
-                ('remnant', 18, 20, stripstr),
-                ('chain', 22, 22, stripstr),
-                ('position', 23, 26, int),
-                ('x', 31, 38, float),
-                ('y', 39, 46, float),
-                ('z', 47, 54, float),
-            ]
-            results.append({f[0]: f[3](line[f[1] - 1:f[2]]) for f in fieldspec})
-    return results
+    for j in range(0, len(energy_deltas)):
+        energy_deltas[j] = energy_deltas[j]/len(energies)
+    return energy_deltas
 
-def load_displacements(protein, directory):
-    pdb = protein2pdb[protein][:-len('.pdb')]
-    i = 0
-
-    displacements = defaultdict(dict)
-    while True:
+def get_displacement_files(pdb, directory):
+    """ Create the full path filename pairs for the 5 Wild Type (WT)
+    and output pdb files """
+    disp_files = list()
+    for i in range(5):
         pdb_basefn = '{}_1_{}.pdb'.format(pdb, i)
         out_pdb_fn = os.path.join(directory, pdb_basefn)
         wt_out_pdb_fn = os.path.join(directory, 'WT_{}'.format(pdb_basefn))
+        disp_files.append((out_pdb_fn, wt_out_pdb_fn))
+    return disp_files
 
-        if not os.path.exists(out_pdb_fn):
-            break
-        i += 1
+def load_displacements(positions, displacements, disp_type):
+    """load the displacements into the given dictionary"""
+    kfmt = '{}-{}-{}-{}'
+    for p in positions:
+        k = kfmt.format(p['chain'], p['position'], p['remnant'], p['atom'])
+        displacements[k][disp_type] = p
+        # if disp_type == 'wt_position':
+        #     if 'position' not in displacements[k]:
+        #         raise ValueError('wt_position does not have correpsonding '
+        #                          'position key: {}'.format(k))
 
-        positions = read_pdb_positions(out_pdb_fn)
-        wt_positions = read_pdb_positions(wt_out_pdb_fn)
-        # Load position data into the displacements
-        kfmt = '{}-{}-{}-{}'
-        for p in positions:
-            k = kfmt.format(p['chain'], p['position'], p['remnant'], p['atom'])
-            displacements[protein][k] = dict()
-            displacements[protein][k]['position'] = p
-        # Generate the delta position data from the wt displacements
-        for p in wt_positions:
-            displacements[protein][k]['wt_position'] = p
-    return displacements
+def check_buildmodel(buildmodel):
+    """Reads the buildmodel file and raises exceptions if there are
+    PROBLEM lines"""
+    problems = list()
+    for line in buildmodel:
+        if "PROBLEM" in line:
+            problems.append(line.rstrip())
 
+    if len(problems) != 0:
+        raise Exception('{}'.format(problems))
 
-def load_foldx_jobdir(foldx_jobs):
-    """
-    Parse the files in the provided foldx job dir, return the
-    available json data.
-    """
-    protein, jobdir = foldx_jobs
-    energies = list()
+def load_foldx_job(foldx_job):
+    """ Parse the files in the provided foldx job, return the
+    available json data.  """
+    protein, wt, site, mutation, jobdir = foldx_job
+
+    jobid = "{},{},{},{},{}".format(protein, wt, site, mutation, jobdir)
+    pdb = protein2pdb[protein][:-len('.pdb')]
+
+    # First check the buildmodel file. If there are errors present,
+    # skip processing and return an empty result. Print the error to
+    # the screen.
     try:
-        energies = load_energy_deltas(protein, jobdir)
-    except FileNotFoundError as e:
-        print('Could not load energy deltas: {}'.format(e), file=errstream)
+        buildmodel_fn = os.path.join(jobdir,
+                                     'BuildModel_{}.fxout'.format(pdb))
+        with open(buildmodel_fn, 'r') as buildmodel:
+            check_buildmodel(buildmodel)
+    except Exception as e:
+        eprint('{},Detected FoldX Errors,{}'.format(jobid, e))
+        return defaultdict(dict)
 
-    displacements = load_displacements(protein, jobdir)
+    # Calculat energy deltas
+    energies = list()
+    wt_energies = list()
+    try:
+        rawmodel_fn = os.path.join(jobdir,
+                                   'Raw_BuildModel_{}.fxout'.format(pdb))
+        with open(rawmodel_fn) as rawmodel:
+            energies, wt_energies = parse_raw_buildmodel(pdb, rawmodel)
+            energy_deltas = calculate_energy_deltas(energies, wt_energies)
+    except FileNotFoundError as e:
+        eprint('{},Could not load energy deltas,{}'.format(jobid, e))
+
+    # Calculate displacements
+    disp_files = get_displacement_files(pdb, jobdir)
+    displacements = defaultdict(dict)
+    for out_pdb_fn, wt_out_pdb_fn in disp_files:
+        try:
+            with open(out_pdb_fn, 'r') as out_pdb:
+                load_displacements(parse_pdb(out_pdb), displacements,
+                                   'position')
+            with open(wt_out_pdb_fn, 'r') as out_pdb:
+                load_displacements(parse_pdb(out_pdb), displacements,
+                                   'wt_position')
+        except Exception as e:
+            eprint('{},Could not load displacements,{}'.format(jobid, e))
 
     data = defaultdict(dict)
-    data[protein]['energies'] = energies
-    data[protein]['displacements'] = displacements
+    data[jobid]['energies'] = energy_deltas
+    # data[jobid]['displacements'] = displacements
     return data
 
 @click.command()
 @click.option('--outfile', '-o', default='EpitopeData.json',
               type=click.File('w', encoding='utf-8'),
               help='The database output file')
-@click.option('--error', default='-',
-              type=click.File('w', encoding='utf-8'),
-              help='The database output file')
 @click.argument('jobs_dir')
-def main(outfile, error, jobs_dir):
-    global errstream
-    errstream = error
+def main(outfile, jobs_dir):
     foldx_jobs = find_foldx_jobs(jobs_dir)
 
     workers = Pool(cpu_count())
-    results = list()
-    with click.progressbar(workers.imap_unordered(load_foldx_jobdir,
+    with click.progressbar(workers.imap_unordered(load_foldx_job,
                                                   foldx_jobs),
                            length=len(foldx_jobs), label='Parsing',
                            file=sys.stdout) as progbar:
         for j in progbar:
-            results.append(j)
-
-    json.dump(results, outfile)
+            json.dump(j, outfile)
