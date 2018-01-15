@@ -124,12 +124,6 @@ def parse_pdb(pdb):
         positions.append({f[0]: f[3](line[f[1] - 1:f[2]]) for f in fieldspec})
     return positions
 
-def mean(list):
-    num = len(list)
-    if num == 0:
-        return float('NaN')
-    return sum(list) / num
-
 def calculate_energy_deltas(energies, wt_energies):
     """Sum the columns in the energies and wt_energies lists and
     return a collapsed list of the averages
@@ -165,11 +159,18 @@ def load_displacements(positions, displacements, disp_type):
     kfmt = '{}-{}-{}-{}'
     for p in positions:
         k = kfmt.format(p['chain'], p['position'], p['remnant'], p['atom'])
-        displacements[k][disp_type] = p
-        # if disp_type == 'wt_position':
-        #     if 'position' not in displacements[k]:
-        #         raise ValueError('wt_position does not have correpsonding '
-        #                          'position key: {}'.format(k))
+        if k not in displacements:
+            displacements[k] = {
+                'atom': p['atom'],
+                'remnant': p['remnant'],
+                'chain': p['chain'],
+                'position': p['position']
+            }
+        displacements[k][disp_type] = {
+            'x': p['x'],
+            'y': p['y'],
+            'z': p['z']
+        }
 
 def check_buildmodel(buildmodel):
     """Reads the buildmodel file and raises exceptions if there are
@@ -182,12 +183,29 @@ def check_buildmodel(buildmodel):
     if len(problems) != 0:
         raise Exception('{}'.format(problems))
 
+def calculate_displacement_deltas(displacements):
+    """If position and wt_position exist, add a 'delta' field with
+    the differences in the x,y,z values"""
+    for k, v in displacements.items():
+        if 'positions' not in v or 'wt_positions' not in v:
+            continue
+        try:
+            displacements[k]['deltas'] = {
+                'x': (v['positions']['x'] - v['wt_positions']['x']),
+                'y': (v['positions']['y'] - v['wt_positions']['y']),
+                'z': (v['positions']['z'] - v['wt_positions']['z'])
+            }
+        except Exception as e:
+            eprint(v)
+            raise e
+
 def load_foldx_job(foldx_job):
     """ Parse the files in the provided foldx job, return the
     available json data.  """
     protein, wt, site, mutation, jobdir = foldx_job
+    job_bn = os.path.basename(jobdir) # Use basename for reporting
 
-    jobid = "{},{},{},{},{}".format(protein, wt, site, mutation, jobdir)
+    jobid = "{},{},{},{},{}".format(protein, wt, site, mutation, job_bn)
     pdb = protein2pdb[protein][:-len('.pdb')]
 
     # First check the buildmodel file. If there are errors present,
@@ -221,10 +239,11 @@ def load_foldx_job(foldx_job):
         try:
             with open(out_pdb_fn, 'r') as out_pdb:
                 load_displacements(parse_pdb(out_pdb), displacements,
-                                   'position')
+                                   'positions')
             with open(wt_out_pdb_fn, 'r') as out_pdb:
                 load_displacements(parse_pdb(out_pdb), displacements,
-                                   'wt_position')
+                                   'wt_positions')
+            calculate_displacement_deltas(displacements)
         except Exception as e:
             eprint('{},Could not load displacements,{}'.format(jobid, e))
 
@@ -234,7 +253,7 @@ def load_foldx_job(foldx_job):
         'wt': wt,
         'site': site,
         'mutation': mutation,
-        'jobdir': jobdir,
+        'jobdir': job_bn,
         'energy_deltas': energy_deltas,
         'displacements': displacements
     }
