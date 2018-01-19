@@ -15,6 +15,7 @@ from __future__ import print_function
 
 import click
 import functools
+import gzip
 import json
 import os
 import re
@@ -261,11 +262,11 @@ def load_foldx_job(foldx_job):
 
 @click.command()
 @click.option('--outfile', '-o', default='EpitopeData.json',
-              type=click.File('w', encoding='utf-8'),
               help='The database output file')
 @click.argument('jobs_dir')
 def main(outfile, jobs_dir):
     foldx_jobs = find_foldx_jobs(jobs_dir)
+    outfile_writer = gzip.open(outfile, 'wb')
 
     workers = Pool(cpu_count())
     with click.progressbar(workers.imap_unordered(load_foldx_job,
@@ -273,4 +274,7 @@ def main(outfile, jobs_dir):
                            length=len(foldx_jobs), label='Parsing',
                            file=sys.stdout) as progbar:
         for j in progbar:
-            json.dump(j, outfile)
+            if j:
+                outfile_writer.write((json.dumps(j) + '\n').encode())
+
+    outfile_writer.close()
