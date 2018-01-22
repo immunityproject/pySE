@@ -24,6 +24,8 @@ import sys
 from collections import defaultdict
 from multiprocessing import Pool, cpu_count
 
+from pyse.sitemapdb import sitemap,peptide_info
+
 # Define and error printing function in lieu of logging api
 eprint = functools.partial(print, file=sys.stderr, flush=True)
 
@@ -248,9 +250,20 @@ def load_foldx_job(foldx_job):
         except Exception as e:
             eprint('{},Could not load displacements,{}'.format(jobid, e))
 
+    # Determine the epitopes
+    epitopes = set()
+    site_epitopes = set()
+    for pk in sitemap.get(site, []):
+        pi = peptide_info[pk]
+        site_epitopes.add(pi['epitope'])
+        if protein in pi['proteins']:
+            epitopes.add(pi['epitope'])
+
     data = dict()
     data[jobid] = {
         'protein': protein,
+        'epitopes': list(epitopes),
+        'site_epitopes': list(site_epitopes),
         'wt': wt,
         'site': site,
         'mutation': mutation,
