@@ -16,6 +16,7 @@ from __future__ import print_function
 import click
 import functools
 import gzip
+import gc
 import json
 import os
 import re
@@ -279,7 +280,7 @@ def load_foldx_job(foldx_job):
 @click.argument('jobs_dir')
 def main(outfile, jobs_dir):
     foldx_jobs = find_foldx_jobs(jobs_dir)
-    outfile_writer = gzip.open(outfile, 'wb')
+    outfile_writer = open(outfile, 'wb')
 
     workers = Pool(cpu_count())
     with click.progressbar(workers.imap_unordered(load_foldx_job,
@@ -291,5 +292,6 @@ def main(outfile, jobs_dir):
                 outfile_writer.write((json.dumps(j) + '\n').encode())
                 outfile_writer.flush()
                 j.clear()
+                gc.collect()
 
     outfile_writer.close()
