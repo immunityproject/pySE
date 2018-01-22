@@ -289,5 +289,7 @@ def main(outfile, jobs_dir):
         for j in progbar:
             if j:
                 outfile_writer.write((json.dumps(j) + '\n').encode())
+                outfile_writer.flush()
+                j.clear()
 
     outfile_writer.close()
