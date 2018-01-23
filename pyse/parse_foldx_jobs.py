@@ -278,11 +278,7 @@ def load_foldx_job(foldx_job):
     }
     return data
 
-@click.command()
-@click.option('--outfile', '-o', default='FoldXData.json',
-              type=click.File('wb'), help='The database output file')
-@click.argument('jobs_dir')
-def main(outfile, jobs_dir):
+def parse_foldx_jobs(outfile, jobs_dir):
     foldx_jobs = find_foldx_jobs(jobs_dir)
 
     workers = Pool(cpu_count())
@@ -296,3 +292,12 @@ def main(outfile, jobs_dir):
                 outfile.flush()
                 j.clear()
                 gc.collect()
+
+
+@click.command()
+@click.option('--outfile', '-o', default='FoldXData.json',
+              help='The database output file')
+@click.argument('jobs_dir')
+def main(outfile, jobs_dir):
+    with open(outfile, 'wb') as out:
+        parse_foldx_jobs(out, jobs_dir)
