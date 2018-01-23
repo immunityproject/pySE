@@ -91,13 +91,31 @@ def parse_raw_buildmodel(pdb, rawmodel):
     """Parse a raw buildmodel file, returning a tuple of the energies
     and wt_energies. We assert that both lists are non-empty and that
     they are the same length."""
+    def parse_energy_line(el):
+        energy_keys = [ "total energy", "Backbone Hbond", "Sidechain Hbond",
+                        "Van der Waals", "Electrostatics",
+                        "Solvation Polar", "Solvation Hydrophobic",
+                        "Van der Waals clashes", "entropy sidechain",
+                        "entropy mainchain", "sloop_entropy",
+                        "mloop_entropy", "cis_bond", "torsional clash",
+                        "backbone clash", "DNA stack clash",
+                        "helix dipole", "water bridge", "disulfide",
+                        "electrostatic kon", "partial covalent bonds",
+                        "energy Ionisation"]
+        # This number is typically missing, so we don't include it:
+        #   , "Entropy Complex" ]
+        energies = [float(e) for e in line.split('\t')[1:]]
+        return { energy_keys[i]: energies[i] for i in range(len(energy_keys)) }
+
     energies = list()
     wt_energies = list()
     for line in rawmodel.readlines()[9:]:
+        # if line.startswith('Pdb') and energy_keys is None:
+        #     energy_keys = [k for k in line.split('\t')[1:]]
         if line.startswith(pdb):
-            energies.append([float(e) for e in line.split('\t')[1:]])
+            energies.append(parse_energy_line(line))
         elif line.startswith('WT_'):
-            wt_energies.append([float(e) for e in line.split('\t')[1:]])
+            wt_energies.append(parse_energy_line(line))
 
     assert len(energies) != 0
     assert len(wt_energies) != 0
@@ -138,13 +156,12 @@ def calculate_energy_deltas(energies, wt_energies):
               for es, ws in zip(zip(*(energies)),
                                 zip(*(wt_energies)))]
     """
-    energy_deltas = [0.0]*len(energies[0])
-    for i in range(0, len(energies)):
-        for j in range(0, len(energies[i])):
-            energy_deltas[j] += (energies[i][j] - wt_energies[i][j])
+    energy_deltas = { k: 0.0 for k in energies[0].keys() }
+    for k in energy_deltas.keys():
+        for i in range(len(energies)):
+            energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
+        energy_deltas[k] = energy_deltas[k]/len(energies)
 
-    for j in range(0, len(energy_deltas)):
-        energy_deltas[j] = energy_deltas[j]/len(energies)
     return energy_deltas
 
 def get_displacement_files(pdb, directory):
