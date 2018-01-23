@@ -279,12 +279,11 @@ def load_foldx_job(foldx_job):
     return data
 
 @click.command()
-@click.option('--outfile', '-o', default='EpitopeData.json',
-              help='The database output file')
+@click.option('--outfile', '-o', default='FoldXData.json',
+              type=click.File('wb'), help='The database output file')
 @click.argument('jobs_dir')
 def main(outfile, jobs_dir):
     foldx_jobs = find_foldx_jobs(jobs_dir)
-    outfile_writer = open(outfile, 'wb')
 
     workers = Pool(cpu_count())
     with click.progressbar(workers.imap_unordered(load_foldx_job,
@@ -293,9 +292,7 @@ def main(outfile, jobs_dir):
                            file=sys.stdout) as progbar:
         for j in progbar:
             if j:
-                outfile_writer.write((json.dumps(j) + '\n').encode())
-                outfile_writer.flush()
+                outfile.write((json.dumps(j) + '\n').encode())
+                outfile.flush()
                 j.clear()
                 gc.collect()
-
-    outfile_writer.close()
