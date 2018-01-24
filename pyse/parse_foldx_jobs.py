@@ -379,7 +379,6 @@ def find_jobkey_epitopes(epitopes, jobkeys):
         # If the peptide for this epitope is present in these sites,
         # add it to each site
         peptide = e['peptide']
-        print('{},{}'.format(peptide, candidate_peptides))
         if peptide not in candidate_peptides:
             continue
         for site in range(start, end + 1):
