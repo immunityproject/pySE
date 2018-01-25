@@ -321,12 +321,11 @@ def load_epitopes(epitopefile):
 
     return epitopes
 
-def resolve_subprotein_site(site, pidx, length, subprotein):
+def resolve_subprotein_site(pidx, length, subprotein):
     """subproteins come in the format subprotein(start-end) and
     subprotein1(start)-subprotein2(end), the latter requires us to
     determine if we are in the first or second subprotein space."""
     parts = subprotein.split('-')
-    eprint(parts)
     if ')' not in parts[0]:
         p,s = parts[0].split('(')[:2]
         return p,(int(s) + pidx)
@@ -376,12 +375,12 @@ def generate_epitope_map(epitopedb):
                     # NOTE: this adds keys outside the protein space,
                     # which is why we keep the full peptide and
                     # subproteins when adding proteins
-                    length = start-end
-                    sp,subsite = resolve_subprotein_site(site, pidx,
+                    length = end-start
+                    sp,subsite = resolve_subprotein_site(pidx,
                                                          length,
                                                          subprotein)
-                    eprint(sp,subsite)
                     if sp.startswith(p):
+                        eprint(sp,subsite)
                         k = kfmt.format(p,wt,subsite)
                         add_epmap_dict(epmap, k, e)
 
