@@ -279,9 +279,10 @@ def load_foldx_job(foldx_job):
     }
     return data
 
-def parse_foldx_jobs(outfile, jobs_dir):
+def parse_foldx_jobs(outfile, epitopes, jobs_dir):
     foldx_jobs = list(find_foldx_jobs(jobs_dir))
-    jobkeys = set()
+    emptyepitope = { k: '' for k in [ "peptide", "protein", "subprotein",
+                                      "start", "end", "epitope", "subtype" ]}
 
     workers = Pool(cpu_count())
     with click.progressbar(workers.imap_unordered(load_foldx_job,
@@ -291,29 +292,17 @@ def parse_foldx_jobs(outfile, jobs_dir):
         for j in progbar:
             if j:
                 for key in j.keys():
-                    jobkeys.add(key)
-                outfile.write((json.dumps(j) + '\n').encode())
+                    kps = key.split(',')[0:4]
+                    epitopekey = '{},{},{}'.format(kps[0], kps[1], kps[2])
+                    for epitope in epitopes.get(epitopekey, [emptyepitope]):
+                        for ek,ev in epitope.items():
+                            if ek == 'protein':
+                                ek = 'polyprotein'
+                            j[key][ek] = ev
+                        outfile.write((json.dumps(j) + '\n').encode())
                 outfile.flush()
                 j.clear()
                 gc.collect()
-
-    return jobkeys
-
-def extract_peptide_mapping(jobkeys):
-    """For each job key, extract the mapping of protein to the list of
-    sites to their wild types.
-
-    This mapping can be use to reconstruct peptide chains using the site order.
-    """
-    pm = defaultdict(dict)
-    for jk in jobkeys:
-        protein, wildtype, site = jk.split(',')[0:3]
-        site = int(site)
-        wtlist = pm[protein].get(site, set())
-        wtlist.add(wildtype)
-        pm[protein][site] = wtlist
-
-    return pm
 
 def load_epitopes(epitopefile):
     """Parse a csv of epitopes of the form:
@@ -332,71 +321,75 @@ def load_epitopes(epitopefile):
 
     return epitopes
 
-def find_protein_name(protein, subprotein, proteinslist):
-    """Given a protein and subprotein name, determine if any of the
-    proteins in the proteins list match"""
-    if protein in proteinslist:
-        return protein
-    if subprotein in proteinslist:
-        return subprotein
-    for p in proteinslist:
-        if subprotein.startswith(p):
-            return p
-    return None
+def resolve_subprotein_site(site, pidx, length, subprotein):
+    """subproteins come in the format subprotein(start-end) and
+    subprotein1(start)-subprotein2(end), the latter requires us to
+    determine if we are in the first or second subprotein space."""
+    parts = subprotein.split('-')
+    eprint(parts)
+    if ')' not in parts[0]:
+        p,s = parts[0].split('(')[:2]
+        return p,(int(s) + pidx)
+    else:
+        p1, start = parts[0].split('(')[:2]
+        p2, end = parts[1].split('(')[:2]
+        start = int(start[:-1])
+        end = int(end[:-1])
+        second_site = pidx - (length - end)
+        if second_site > 0: # Second subprotein
+            return p2,second_site
+        else:
+            return p1,(pidx+start)
 
-def find_jobkey_epitopes(epitopes, jobkeys):
-    """For each epitope in the epitopes list, map it to it's
-    corresponding job keys"""
-    peptidemap = extract_peptide_mapping(jobkeys)
-    proteins = peptidemap.keys()
+def add_epmap_dict(epmap, k, e):
+    for ep in epmap[k]:
+        if e['peptide'] == ep['peptide']:
+            return
+    epmap[k].append(e)
+
+def generate_epitope_map(epitopedb):
+    """For each epitope in the epitopes list, map it to a job key
+
+    Limit the key outputs to the proteins and subproteins in the global
+    proteins list.
+    """
+    global proteins
 
     # Map matched epitopes to job prefixes
-    jkprefixes = defaultdict(list)
-    for e in epitopes:
-        # Find the protein name in peptidemap
-        protein = find_protein_name(e['protein'], e['subprotein'], proteins)
-        if not protein:
-            continue
-
-        # Now find the start and stop
-        pm = peptidemap[protein]
+    kfmt = '{},{},{}'
+    epmap = defaultdict(list)
+    for e in epitopedb:
         start = int(e['start'])
         end = int(e['end'])
-        if start not in pm or end not in pm:
-            continue
 
-        # Determine all peptide sequence candidates in this site range
-        candidate_peptides = [ '' ] # Start with 1 empty candidate
-        for site in range(start, end + 1):
-            new_candidates = []
-            # Default case: do not add candidates
-            # If more than 1, replicate each existing candidate
-            for cp in candidate_peptides:
-                for wt in pm[site]:
-                    new_candidates.append(cp + wt)
-            candidate_peptides = new_candidates
+        for site in range(start, end):
+            pidx = site-start
+            wt = e['peptide'][pidx]
+            protein = e['protein']
+            subprotein = e['subprotein']
+            subprotein.replace('POL-TF', 'POL_TF')
+            for p in proteins:
+                if p in protein:
+                    k = kfmt.format(p,wt,site)
+                    add_epmap_dict(epmap, k, e)
+                if p in subprotein:
+                    # NOTE: this adds keys outside the protein space,
+                    # which is why we keep the full peptide and
+                    # subproteins when adding proteins
+                    length = start-end
+                    sp,subsite = resolve_subprotein_site(site, pidx,
+                                                         length,
+                                                         subprotein)
+                    eprint(sp,subsite)
+                    if sp.startswith(p):
+                        k = kfmt.format(p,wt,subsite)
+                        add_epmap_dict(epmap, k, e)
 
-        # If the peptide for this epitope is present in these sites,
-        # add it to each site
-        peptide = e['peptide']
-        if peptide not in candidate_peptides:
-            continue
-        for site in range(start, end + 1):
-            # Job keys start with protein,wildtype,site
-            for wt in pm[site]:
-                key = '{},{},{}'.format(protein, wt, site)
-                jkprefixes[key].append(e)
-
-    # For each job key, set the epitope based on the matches found in the prefix
-    jobkey_epitopes = dict()
-    for jk in jobkeys:
-        p,s,wt = jk.split(',')[0:3]
-        jkprefix = '{},{},{}'.format(p, s, wt)
-        jobkey_epitopes[jk] = jkprefixes[jkprefix]
-    return jobkey_epitopes
+    return epmap
 
 @click.command()
 @click.option('--outfile', '-o', default='FoldXData.json',
+              type=click.File('wb'),
               help='The database output file')
 @click.option('--epitopedb', '-e', default='epitope-info.csv',
               type=click.File('r'),
@@ -404,27 +397,5 @@ def find_jobkey_epitopes(epitopes, jobkeys):
                     '(pySE/data/epitopes/epitope-info.csv)'))
 @click.argument('jobs_dir')
 def main(outfile, epitopedb, jobs_dir):
-    epitopes = load_epitopes(epitopedb)
-
-    jobkeys = set()
-    with open(outfile + '.tmp', 'wb') as out:
-        jobkeys = parse_foldx_jobs(out, jobs_dir)
-
-    jobkey_epitopes = find_jobkey_epitopes(epitopes, jobkeys)
-
-    with open(outfile + '.tmp', 'rb') as tmp:
-        with open(outfile, 'wb') as out:
-            for line in tmp:
-                entry = json.loads(line.rstrip())
-                for k in entry.keys():
-                    matched_eps = jobkey_epitopes.get(k, ['Unknown'])
-                    for matched_ep in matched_eps:
-                        entry[k]['epitope'] = matched_ep['epitope']
-                        entry[k]['peptide'] = matched_ep['peptide']
-                        entry[k]['subprotein'] = matched_ep['subprotein']
-                        entry[k]['polyprotein'] = matched_ep['protein']
-                        entry[k]['subtype'] = matched_ep['subtype']
-                        out.write((json.dumps(entry) + '\n').encode())
-                out.flush()
-
-    os.remove(outfile + '.tmp')
+    epitopes = generate_epitope_map(load_epitopes(epitopedb))
+    parse_foldx_jobs(outfile, epitopes, jobs_dir)
