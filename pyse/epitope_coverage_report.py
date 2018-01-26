@@ -41,7 +41,7 @@ def get_subprotein_idx(subprotein, length, site):
         start = int(start[:-1])
         end = int(end[:-1])
         second_site = site - end
-        if second_site < 0: # Second subprotein
+        if second_site <= 0: # Second subprotein
             return (site-1) + (length-end)
         else:
             return site - start
