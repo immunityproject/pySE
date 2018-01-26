@@ -361,9 +361,12 @@ def generate_epitope_map(epitopedb):
         start = int(e['start'])
         end = int(e['end'])
 
-        for site in range(start, end):
+        for site in range(start, end + 1):
             pidx = site-start
-            wt = e['peptide'][pidx]
+            eprint(e['peptide'],pidx, len(e['peptide']), start, end)
+            wt = '-'
+            if pidx < len(e['peptide']):
+                wt = e['peptide'][pidx]
             protein = e['protein']
             subprotein = e['subprotein']
             subprotein.replace('POL-TF', 'POL_TF')
@@ -380,7 +383,6 @@ def generate_epitope_map(epitopedb):
                                                          length,
                                                          subprotein)
                     if sp.startswith(p):
-                        eprint(sp,subsite)
                         k = kfmt.format(p,wt,subsite)
                         add_epmap_dict(epmap, k, e)
 
