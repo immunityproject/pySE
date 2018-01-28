@@ -68,6 +68,9 @@ def main(parsed_foldx_jobs):
     # and a chain with a start at 0 and an end at the last site.
     for foldx_data in load_parsed_foldx_data(parsed_foldx_jobs):
         k = itemgetter('subprotein','peptide','start')(foldx_data)
+        # Remap the key to just the protein name if it's empty
+        if not k or k == ('','',''):
+            k = foldx_data['protein']
         if not ei[k]:
             entry = { k: foldx_data[k] for k in copyfields }
             entry['peptide_fragment'] = ''
@@ -103,6 +106,7 @@ def main(parsed_foldx_jobs):
         copyfields.insert(1, 'peptide_fragment')
         copyfields.append('mutations')
         writer = csv.DictWriter(outfile, fieldnames=copyfields)
+        writer.writeheader()
         for k in ei.keys():
             writer.writerow(ei[k])
 
