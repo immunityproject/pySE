@@ -35,14 +35,14 @@ def parse_seqfile(filename):
     return chain_aminos
 
 
-def makeJobDir(protein_name, line):
+def makeJobDir(protein_name, line, basedir='.'):
     """Generate a job directory for a work item.
     :param protein_name: the name of the protein that this work item is used with.
     :param line: the mutation(s) that this work item should perform. 
     :returns: None.  Generates a folder and FoldX work files on disk. """
     pdb_name = pdbs[protein_name]
     dir_name = "foldxbm-" + str(uuid.uuid4())
-    full_loc = protein_name + "/" + dir_name
+    full_loc = os.path.join(basedir, protein_name, dir_name)
     os.makedirs(full_loc)
     f = open(full_loc + '/individual_list.txt', 'w+')
     f2 = open(full_loc + '/list.txt', 'w+')

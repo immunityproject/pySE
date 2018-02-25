@@ -16,7 +16,8 @@ setup(
     entry_points={
        'console_scripts': [
            'compute_shannon_entropy = pyse.compute_shannon_entropy:main',
-           'pfj = pyse.parse_foldx_jobs:main'
+           'pfj = pyse.parse_foldx_jobs:main',
+           'cfj = pyse.create_foldx_jobs:main'
        ]
     }
 )
