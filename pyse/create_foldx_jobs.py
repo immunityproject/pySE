@@ -39,12 +39,11 @@ from __future__ import print_function
 
 import click
 import os
-import uuid
 
 from collections import defaultdict
 
-from pdb import parse_pdb
-from proteins import codes
+from pyse.pdb import parse_pdb
+from pyse.proteins import codes
 
 
 def makeJobDir(pdbfile, jobid, line, basedir='.'):
@@ -52,13 +51,12 @@ def makeJobDir(pdbfile, jobid, line, basedir='.'):
     :param pdbfile: the name of the pdbfile that this work item is used with.
     :param line: the mutation(s) that this work item should perform.
     :returns: None.  Generates a folder and FoldX work files on disk. """
-    pdb_name = pdbfile
     dir_name = "foldxbm-{}".format(jobid)
-    full_loc = os.path.join(basedir, protein_name, dir_name)
+    full_loc = os.path.join(basedir, dir_name)
     os.makedirs(full_loc)
-    with open(os.path.join(full_loc, 'individual_list.txt'), 'wb') as il:
+    with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as il:
         il.write(os.path.basename(pdbfile) + '\n')
-    with open(os.path.join(full_loc, 'list.txt'), 'wb') as l:
+    with open(os.path.join(full_loc, 'list.txt'), 'w') as l:
         l.write(line + '\n')
 
 def generate_chaingroups(pdbfn):
@@ -66,13 +64,15 @@ def generate_chaingroups(pdbfn):
     generating build job folders:
       site: {wildtype: [groups]}
     """
-    chaingroups = defaultdict(defaultdict(set))
+    chaingroups = defaultdict(dict)
     with open(pdbfn, 'r') as pdbfile:
         for pdbentry in parse_pdb(pdbfile):
             wildtype = pdbentry['remnant']
             chain = pdbentry['chain']
             site = pdbentry['position']
-            chaingroups[site][wildtype].add(chain)
+            chains = chaingroups[site].get(wildtype, set())
+            chains.add(chain)
+            chaingroups[site][wildtype] = chains
     return chaingroups
 
 @click.command()
@@ -88,7 +88,7 @@ def main(outdir, protein, pdbfile):
                                                                 outdir))
     chaingroups = generate_chaingroups(pdbfile)
     for site, chaingroup in chaingroups.items():
-        for wildtype, chains in chaingroup:
+        for wildtype, chains in chaingroup.items():
             wtamino = codes[wildtype]
             for mut in codes.values():
                 mutlist = ','.join(['{}{}{}{}'.format(wtamino, chain, site, mut)

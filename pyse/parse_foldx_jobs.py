@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 from multiprocessing import Pool, cpu_count
 
-from pdb import parse_pdb
+from pyse.pdb import parse_pdb
 
 # Define and error printing function in lieu of logging api
 eprint = functools.partial(print, file=sys.stderr, flush=True)
