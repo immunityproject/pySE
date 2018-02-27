@@ -95,3 +95,7 @@ def main(outdir, protein, pdbfile):
                                     for chain in chains]) + ';'
                 jobid = '{}-{}-{}'.format(site, wtamino, mut)
                 makeJobDir(pdbfile, jobid, mutlist, outdir)
+
+
+if __name__ == '__main__':
+    main()
