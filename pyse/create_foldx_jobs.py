@@ -54,9 +54,9 @@ def makeJobDir(pdbfile, jobid, line, basedir='.'):
     dir_name = "foldxbm-{}".format(jobid)
     full_loc = os.path.join(basedir, dir_name)
     os.makedirs(full_loc)
-    with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as il:
+    with open(os.path.join(full_loc, 'list.txt'), 'w') as il:
         il.write(os.path.basename(pdbfile) + '\n')
-    with open(os.path.join(full_loc, 'list.txt'), 'w') as l:
+    with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as l:
         l.write(line + '\n')
 
 def generate_chaingroups(pdbfn):
