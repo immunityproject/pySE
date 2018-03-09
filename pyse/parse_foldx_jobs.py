@@ -29,7 +29,8 @@ from multiprocessing import Pool, cpu_count
 from pyse.pdb import parse_pdb
 
 # Define and error printing function in lieu of logging api
-eprint = functools.partial(print, file=sys.stderr, flush=True)
+eprint = functools.partial(print, file=sys.stderr)
+                           # flush=True)
 
 proteins = [ 'RT', 'TAT', 'P24', 'INT', 'ZIKA_E', 'PRO', 'P17', 'REV',
              'GP120', 'NEF' ]
@@ -42,7 +43,9 @@ pdb2protein = {
     'Nef_1EFN_N.pdb': 'NEF',
     'protease_Dimer_3IXO_N.pdb': 'PRO',
     'Rev_3LPH_N.pdb': 'REV',
-    'tat_3MI9_N.pdb': 'TAT'
+    'tat_3MI9_N.pdb': 'TAT',
+    '4giz.pdb': 'E6',
+    '4xr8.pdb': 'E6'
 }
 protein2pdb = {v: k for k,v in pdb2protein.items()}
 
