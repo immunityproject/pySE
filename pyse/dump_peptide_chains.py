@@ -28,7 +28,8 @@ def main(pdbfile):
             # Reset Case: The chain changes
             if chain != pdbentry['chain']:
                 if chain:
-                    print('{},{},{},{}'.format(pdbfn,startsite,endsite,peptide))
+                    print('{},{},{},{},{}'.format(pdbfn, startsite, endsite,
+                                                  chain, peptide))
                 startsite = pdbentry['position']
                 chain = pdbentry['chain']
                 peptide = ''
