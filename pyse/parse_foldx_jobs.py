@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 """
 Parse Foldx Jobs
@@ -378,7 +378,8 @@ def generate_epitope_map(epitopedb):
                     if sp.startswith(p):
                         k = kfmt.format(wt,subsite)
                         add_epmap_dict(epmap, k, e)
-
+    # for k,v in epmap.items():
+    #     eprint('{}: {}'.format(k, len(v)))
     return epmap
 
 @click.command()
