@@ -9,6 +9,7 @@ from __future__ import print_function
 import click
 import os
 
+from pyse.proteins import codes
 from pyse.pdb import parse_pdb
 
 @click.command()
@@ -36,7 +37,7 @@ def main(pdbfile):
                 endsite = None
                 prevsite = None
 
-            peptide += pdbentry['remnant']
+            peptide += codes[pdbentry['remnant']]
             endsite = int(pdbentry['position'])
             if prevsite != None and endsite - 1 != prevsite:
                 print('Missing sites between {} and {}'.format(endsite,
