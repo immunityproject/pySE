@@ -16,7 +16,6 @@ from __future__ import print_function
 import click
 import csv
 import functools
-import gzip
 import gc
 import json
 import os
@@ -44,8 +43,8 @@ pdb2protein = {
     'protease_Dimer_3IXO_N.pdb': 'PRO',
     'Rev_3LPH_N.pdb': 'REV',
     'tat_3MI9_N.pdb': 'TAT',
-    '4giz.pdb': 'E6',
-    '4xr8.pdb': 'E6'
+    '4giz.pdb': 'E6-4giz',
+    '4xr8.pdb': 'E6-4xr8'
 }
 protein2pdb = {v: k for k,v in pdb2protein.items()}
 
@@ -57,19 +56,25 @@ def find_foldx_jobs(directory):
       - A valid pdb name in the list.txt file per pdb2proteins
       - A parseable wt, site, mutation in individual_list.txt
 
-    Return a list of (protein, wt, site, mutation, jobdir). Folders
+    Return a list of (protein, wt, site, mutation, chains, jobdir). Folders
     missing list.txt or individual_list.txt files are skipped. We make
     no guarantees about validity of the jobs. Checking and reporting
     on that should go elsewhere.
     """
     individual_list_parser = re.compile(r'(\w)(\w)(\d+)(\w)')
     foldx_jobs = set()
-    for root,dirs,files in os.walk(directory):
+    cnt = 1
+    for curdir in os.listdir(directory):
+        root = os.path.join(directory, curdir)
+        files = os.listdir(root)
         if 'list.txt' not in files or 'individual_list.txt' not in files:
             continue
 
+        print('Finding foldx job directories...{}'.format(cnt), end='\r')
+
         protein = None
         wt = None
+        chains = []
         site = None
         mutation = None
         jobdir = None
@@ -80,14 +85,19 @@ def find_foldx_jobs(directory):
 
         with open(os.path.join(root, 'individual_list.txt')) as indfile:
             # This will take a line like: EA28E,EB28E,EC28E,ED28E,EE28E,EF28E;
-            # It reads the first element: EA28E
-            # Then EA28E -> wt = E, site = 28, and mutation = E.
-            # NOTE: A is the chain, which shows up again in the .pdb outputs
-            individual_list = indfile.read().strip().split(',')
-            parsed_ind_list = individual_list_parser.match(individual_list[0])
-            wt, site, mutation = parsed_ind_list.group(1, 3, 4)
+            # Then EA28E -> wt = E, chain = A, site = 28, and mutation = E.
+            for individual_list in indfile.read().strip().split(','):
+                parsed_ind_list = individual_list_parser.match(individual_list)
+                if ((wt and wt != parsed_ind_list.group(1))
+                    or (site and site != parsed_ind_list.group(3))
+                    or (mutation and mutation != parsed_ind_list.group(4))):
+                    eprint('List is not self-consistent: {}'.format(
+                        individual_list))
+                wt, chain, site, mutation = parsed_ind_list.group(1, 2, 3, 4)
+                chains.append(chain)
 
-        foldx_job = (protein, wt, site, mutation, jobdir)
+        cnt += 1
+        foldx_job = (protein, wt, site, mutation, ','.join(chains), jobdir)
         foldx_jobs.add(foldx_job)
     return foldx_jobs
 
@@ -204,7 +214,7 @@ def calculate_displacement_deltas(displacements):
 def load_foldx_job(foldx_job):
     """ Parse the files in the provided foldx job, return the
     available json data.  """
-    protein, wt, site, mutation, jobdir = foldx_job
+    protein, wt, site, mutation, chains, jobdir = foldx_job
     job_bn = os.path.basename(jobdir) # Use basename for reporting
 
     jobid = "{},{},{},{},{}".format(protein, wt, site, mutation, job_bn)
@@ -235,19 +245,19 @@ def load_foldx_job(foldx_job):
         eprint('{},Could not load energy deltas,{}'.format(jobid, e))
 
     # Calculate displacements
-    disp_files = get_displacement_files(pdb, jobdir)
+    # disp_files = get_displacement_files(pdb, jobdir)
     displacements = defaultdict(dict)
-    for out_pdb_fn, wt_out_pdb_fn in disp_files:
-        try:
-            with open(out_pdb_fn, 'r') as out_pdb:
-                load_displacements(parse_pdb(out_pdb), displacements,
-                                   'positions')
-            with open(wt_out_pdb_fn, 'r') as out_pdb:
-                load_displacements(parse_pdb(out_pdb), displacements,
-                                   'wt_positions')
-            calculate_displacement_deltas(displacements)
-        except Exception as e:
-            eprint('{},Could not load displacements,{}'.format(jobid, e))
+    # for out_pdb_fn, wt_out_pdb_fn in disp_files:
+    #     try:
+    #         with open(out_pdb_fn, 'r') as out_pdb:
+    #             load_displacements(parse_pdb(out_pdb), displacements,
+    #                                'positions')
+    #         with open(wt_out_pdb_fn, 'r') as out_pdb:
+    #             load_displacements(parse_pdb(out_pdb), displacements,
+    #                                'wt_positions')
+    #         calculate_displacement_deltas(displacements)
+    #     except Exception as e:
+    #         eprint('{},Could not load displacements,{}'.format(jobid, e))
 
     data = dict()
     data[jobid] = {
@@ -255,6 +265,7 @@ def load_foldx_job(foldx_job):
         'wt': wt,
         'site': site,
         'mutation': mutation,
+        'chains': chains,
         'jobdir': job_bn,
         'energy_deltas': energy_deltas,
         'displacements': displacements
@@ -263,6 +274,7 @@ def load_foldx_job(foldx_job):
 
 def parse_foldx_jobs(outfile, epitopes, jobs_dir):
     foldx_jobs = list(find_foldx_jobs(jobs_dir))
+
     emptyepitope = { k: '' for k in [ "peptide", "protein", "subprotein",
                                       "start", "end", "epitope", "subtype" ]}
 
@@ -275,7 +287,7 @@ def parse_foldx_jobs(outfile, epitopes, jobs_dir):
             if j:
                 for key in j.keys():
                     kps = key.split(',')[0:4]
-                    epitopekey = '{},{},{}'.format(kps[0], kps[1], kps[2])
+                    epitopekey = '{},{}'.format(kps[1], kps[2])
                     for epitope in epitopes.get(epitopekey, [emptyepitope]):
                         for ek,ev in epitope.items():
                             if ek == 'protein':
@@ -337,7 +349,7 @@ def generate_epitope_map(epitopedb):
     global proteins
 
     # Map matched epitopes to job prefixes
-    kfmt = '{},{},{}'
+    kfmt = '{},{}'
     epmap = defaultdict(list)
     for e in epitopedb:
         start = int(e['start'])
@@ -345,17 +357,16 @@ def generate_epitope_map(epitopedb):
 
         for site in range(start, end + 1):
             pidx = site-start
-            eprint(e['peptide'],pidx, len(e['peptide']), start, end)
+            # eprint(e['peptide'],pidx, len(e['peptide']), start, end)
             wt = '-'
             if pidx < len(e['peptide']):
                 wt = e['peptide'][pidx]
-            protein = e['protein']
+            # protein = e['protein']
             subprotein = e['subprotein']
             subprotein.replace('POL-TF', 'POL_TF')
+            k = kfmt.format(wt,site)
+            add_epmap_dict(epmap, k, e)
             for p in proteins:
-                if p in protein:
-                    k = kfmt.format(p,wt,site)
-                    add_epmap_dict(epmap, k, e)
                 if p in subprotein:
                     # NOTE: this adds keys outside the protein space,
                     # which is why we keep the full peptide and
@@ -365,7 +376,7 @@ def generate_epitope_map(epitopedb):
                                                          length,
                                                          subprotein)
                     if sp.startswith(p):
-                        k = kfmt.format(p,wt,subsite)
+                        k = kfmt.format(wt,subsite)
                         add_epmap_dict(epmap, k, e)
 
     return epmap
