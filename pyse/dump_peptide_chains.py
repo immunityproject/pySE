@@ -9,40 +9,19 @@ from __future__ import print_function
 import click
 import os
 
-from pyse.proteins import codes
-from pyse.pdb import parse_pdb
+from pyse.pdb import parse_pdb,get_peptide_chains
 
 @click.command()
 @click.argument('pdbfile')
 def main(pdbfile):
     pdbfn = os.path.basename(pdbfile)
-    with open(pdbfile, 'r') as pdbdata:
-        startsite = None
-        chain = None
-        peptide = ''
-        endsite = None
-        prevsite = None
-        for pdbentry in parse_pdb(pdbdata):
-            if pdbentry['atom'] != 'N':
-                continue
-
-            # Reset Case: The chain changes
-            if chain != pdbentry['chain']:
-                if chain:
-                    print('{},{},{},{},{}'.format(pdbfn, startsite, endsite,
-                                                  chain, peptide))
-                startsite = pdbentry['position']
-                chain = pdbentry['chain']
-                peptide = ''
-                endsite = None
-                prevsite = None
-
-            peptide += codes[pdbentry['remnant']]
-            endsite = int(pdbentry['position'])
-            if prevsite != None and endsite - 1 != prevsite:
-                print('Missing sites between {} and {}'.format(endsite,
-                                                               prevsite))
-            prevsite = int(pdbentry['position'])
+    with open(pdbfile, 'r') as pdb:
+        for peptide in get_peptide_chains(parse_pdb(pdb)):
+            print('{},{},{},{},{}'.format(pdbfn,
+                                          peptide['startsite'],
+                                          peptide['endsite'],
+                                          peptide['chain'],
+                                          peptide['peptide']))
 
 if __name__ == '__main__':
     main()

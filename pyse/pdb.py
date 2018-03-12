@@ -4,6 +4,8 @@
 Functions for processing pdb files
 """
 
+from pyse.proteins import codes
+
 def parse_pdb(pdb):
     """ Read the x,y,z positions for each atom in a PDB file """
     positions = []
@@ -41,3 +43,37 @@ def parse_pdb(pdb):
             print('Error on line {}: {}'.format(lctr, line))
             print(e)
     return positions
+
+def get_peptide_chains(pdbdb):
+    startsite = None
+    chain = None
+    peptide = ''
+    endsite = None
+    prevsite = None
+    peptidechains = []
+    for pdbentry in pdbdb:
+        if pdbentry['atom'] != 'N':
+            continue
+
+        # Reset Case: The chain changes
+        if chain != pdbentry['chain']:
+            if chain:
+                peptidechains.append({
+                    'startsite': startsite,
+                    'endsite': endsite,
+                    'chain': chain,
+                    'peptide': peptide
+                })
+            startsite = pdbentry['position']
+            chain = pdbentry['chain']
+            peptide = ''
+            endsite = None
+            prevsite = None
+
+        peptide += codes[pdbentry['remnant']]
+        endsite = int(pdbentry['position'])
+        if prevsite != None and endsite - 1 != prevsite:
+            print('Missing sites between {} and {}'.format(endsite, prevsite))
+        prevsite = int(pdbentry['position'])
+
+    return peptidechains
