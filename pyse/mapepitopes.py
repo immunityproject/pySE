@@ -52,6 +52,8 @@ def resolve_subprotein_site(pidx, length, subprotein):
     """subproteins come in the format subprotein(start-end) and
     subprotein1(start)-subprotein2(end), the latter requires us to
     determine if we are in the first or second subprotein space."""
+    if '(' not in subprotein and ')' not in subprotein:
+        return None, None
     parts = subprotein.split('-')
     if ')' not in parts[0]:
         p,s = parts[0].split('(')[:2]
@@ -136,12 +138,15 @@ def get_peptide_status(epitope, peptidechain, threshhold=5):
         return None
     if (end - start + 1) != len(e_peptide):
         logging.warn('Skipped! len({}) = {} does not match declared start, end:'
-                     ' {}, {}'.format(e_peptide, len(e_peptide),
-                                      start, end))
+                     ' {}, {} -> {}, {}'.format(e_peptide, len(e_peptide),
+                                                epitope['start'],
+                                                epitope['end'],
+                                                start, end))
         return None
 
     c_peptide = peptidechain['peptide'][start:(end + 1)]
-    logging.debug("{} v {}".format(e_peptide, c_peptide))
+
+    logging.debug("{} v {} ({}, {})".format(e_peptide, c_peptide, start, end))
     peptide_status = list()
     hits = 0
     # NOTE: c_peptide can be shorter when epitope describes end of chain
@@ -150,7 +155,7 @@ def get_peptide_status(epitope, peptidechain, threshhold=5):
             # pass through missing peptides
             peptide_status.append('-')
         elif c_peptide[i] == e_peptide[i]:
-            hits += 1
+            hits = hits + 1
             peptide_status.append(e_peptide[i])
         else:
             peptide_status.append('x')
@@ -169,10 +174,33 @@ def find_epitope_chains(epitopes, peptidechains):
     for epitope in epitopes:
         for peptidechain in peptidechains:
             peptide_status = get_peptide_status(epitope, peptidechain)
+            startsite = int(epitope['start'])
+            endsite = int(epitope['end'])
+            length = endsite - startsite
+            if not peptide_status:
+                subprotein = epitope['subprotein']
+                sp,subsite = resolve_subprotein_site(0,
+                                                     length,
+                                                     subprotein)
+                if sp and subsite:
+                    # NOTE: Updating startsite is important to get the
+                    # key right map key, wihch has to be relative to
+                    # the PDB, not the epitope info
+                    startsite = subsite
+                    epitope['start'] = subsite
+                    epitope['end'] = subsite + length
+                    peptide_status = get_peptide_status(epitope, peptidechain)
+
             if not peptide_status:
                 continue
-            for i in range(int(epitope['start']), int(epitope['end'])+1):
-                mapkey = '{}{}'.format(peptidechain['chain'],i)
+
+            if epitope['peptide'] == 'MHEDIISLW':
+                print('LOVE: {}'.format(peptide_status))
+
+            for i in range(length):
+                mapkey = '{}{}'.format(peptidechain['chain'],i + startsite)
+                if epitope['peptide'] == 'MHEDIISLW':
+                    print('LOVE: {}'.format(mapkey))
                 new_e = epitope.copy()
                 new_e['peptide_status'] = peptide_status
                 epitopemap[mapkey].append(new_e)
@@ -206,9 +234,25 @@ def get_epitopes(epitopemap, site, chains):
 @click.option('--outfile', '-o', default='-',
               type=click.File('w'),
               help=('Output file in jsonl format'))
-def map_epitopes(epitopecsv, pdb, infile, outfile):
+@click.option('--protein', '-f', default=None,
+              help=('Limit to given protein name'))
+def map_epitopes(epitopecsv, pdb, infile, outfile, protein):
     peptidechains = get_peptide_chains(parse_pdb(pdb))
     epitopes = load_epitopes(epitopecsv)
+
+    if protein:
+        new_eps = list()
+        for e_v in epitopes:
+            # skip this entry if we fail to get a protein match on the
+            # protein or the subprotein. NOTE the startswith on
+            # subprotein, because they often contain the site
+            # information.
+            if (protein != e_v['protein']
+                and not e_v['subprotein'].startswith(protein)):
+                continue
+            new_eps.append(e_v)
+        epitopes = new_eps
+
     matched_epitopes = find_epitope_chains(epitopes, peptidechains)
     for line in infile:
         foldx_job = json.loads(line.rstrip())
