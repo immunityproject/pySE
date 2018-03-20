@@ -90,8 +90,12 @@ def main(outdir, protein, pdbfile):
     for site, chaingroup in chaingroups.items():
         for wildtype, chains in chaingroup.items():
             wtamino = codes[wildtype]
-            for mut in codes.values():
-                mutlist = ','.join(['{}{}{}{}'.format(wtamino, chain, site, mut)
-                                    for chain in chains]) + ';'
-                jobid = '{}-{}-{}'.format(site, wtamino, mut)
-                makeJobDir(pdbfile, jobid, mutlist, outdir)
+            for chain in chains:
+                for mut in codes.values():
+                    mutlist = '{}{}{}{};'.format(wtamino, chain, site, mut)
+                    jobid = '{}-{}-{}-{}'.format(site, chain, wtamino, mut)
+                    makeJobDir(pdbfile, jobid, mutlist, outdir)
+
+
+if __name__ == '__main__':
+    main()
