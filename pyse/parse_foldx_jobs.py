@@ -82,7 +82,7 @@ def find_foldx_jobs(directory):
         jobdir = None
         with open(os.path.join(root, 'list.txt'), 'r') as listfile:
             pdb = listfile.read().strip()
-            protein = pdb2protein[pdb]
+            protein = pdb2protein.get(pdb, pdb)
             jobdir = root
 
         with open(os.path.join(root, 'individual_list.txt')) as indfile:
@@ -222,7 +222,7 @@ def load_foldx_job(foldx_job):
     job_bn = os.path.basename(jobdir) # Use basename for reporting
 
     jobid = "{},{},{},{},{}".format(protein, wt, site, mutation, job_bn)
-    pdb = protein2pdb[protein][:-len('.pdb')]
+    pdb = protein2pdb.get(protein, protein)[:-len('.pdb')]
 
     # First check the buildmodel file. If there are errors present,
     # skip processing and return an empty result. Print the error to
