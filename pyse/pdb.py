@@ -78,4 +78,11 @@ def get_peptide_chains(pdbdb):
                 peptide += '-'
         prevsite = int(pdbentry['position'])
 
+    peptidechains.append({
+        'startsite': startsite,
+        'endsite': endsite,
+        'chain': chain,
+        'peptide': peptide
+    })
+
     return peptidechains
