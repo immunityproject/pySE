@@ -197,7 +197,7 @@ def find_epitope_chains(epitopes, peptidechains):
             if epitope['peptide'] == 'MHEDIISLW':
                 print('LOVE: {}'.format(peptide_status))
 
-            for i in range(length):
+            for i in range(length + 1):
                 mapkey = '{}{}'.format(peptidechain['chain'],i + startsite)
                 if epitope['peptide'] == 'MHEDIISLW':
                     print('LOVE: {}'.format(mapkey))
