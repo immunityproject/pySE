@@ -25,14 +25,14 @@ def parse_pdb(pdb):
             ('atom', 13, 16, stripstr),
             ('remnant', 18, 20, stripstr),
             ('chain', 22, 22, stripstr),
-            ('position', 23, 27, int),
+            ('position', 23, 27, stripstr),
             ('x', 31, 38, float),
             ('y', 39, 46, float),
             ('z', 47, 54, float),
         ]
         # The following fixes an inconsistency in the PDB spec when position
         # is over 999, because x shifts to the right
-        if int(line[22:27]) > 999:
+        if int(line[22:26]) > 999:
             fieldspec[4] = ('x', 32, 39, float)
             fieldspec[5] = ('y', 40, 47, float)
             fieldspec[6] = ('z', 48, 55, float)
