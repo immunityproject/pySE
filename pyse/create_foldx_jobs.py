@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# pylint: disable=no-value-for-parameter
 
 """
 Create Foldx Jobs
@@ -37,16 +38,16 @@ The original version of this tool can be found in generate_buildmodel.py
 """
 from __future__ import print_function
 
-import click
 import os
-
 from collections import defaultdict
+
+import click
 
 from pyse.pdb import parse_pdb
 from pyse.proteins import codes
 
 
-def makeJobDir(pdbfile, jobid, line, basedir='.'):
+def make_job_dir(pdbfile, jobid, line, basedir='.'):
     """Generate a job directory for a work item.
     :param pdbfile: the name of the pdbfile that this work item is used with.
     :param line: the mutation(s) that this work item should perform.
@@ -54,10 +55,10 @@ def makeJobDir(pdbfile, jobid, line, basedir='.'):
     dir_name = "foldxbm-{}".format(jobid)
     full_loc = os.path.join(basedir, dir_name)
     os.makedirs(full_loc)
-    with open(os.path.join(full_loc, 'list.txt'), 'w') as il:
-        il.write(os.path.basename(pdbfile) + '\n')
-    with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as l:
-        l.write(line + '\n')
+    with open(os.path.join(full_loc, 'list.txt'), 'w') as list_file:
+        list_file.write(os.path.basename(pdbfile) + '\n')
+    with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as ilist_file:
+        ilist_file.write(line + '\n')
 
 def generate_chaingroups(pdbfn):
     """This parses the pdb then generates the following structure for
@@ -83,6 +84,7 @@ def generate_chaingroups(pdbfn):
                     'jobdir/proteinname/jobname)'))
 @click.argument('pdbfile')
 def main(outdir, protein, pdbfile):
+    """CLI for creating jobs"""
     outdir = os.path.join(outdir, protein)
     print('Reading {} and putting job directories in {}'.format(pdbfile,
                                                                 outdir))
@@ -94,7 +96,7 @@ def main(outdir, protein, pdbfile):
                 for mut in codes.values():
                     mutlist = '{}{}{}{};'.format(wtamino, chain, site, mut)
                     jobid = '{}-{}-{}-{}'.format(site, chain, wtamino, mut)
-                    makeJobDir(pdbfile, jobid, mutlist, outdir)
+                    make_job_dir(pdbfile, jobid, mutlist, outdir)
 
 
 if __name__ == '__main__':
