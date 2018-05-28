@@ -74,6 +74,9 @@ def get_peptide_chains(pdbdb):
         try:
             endsite = int(pdbentry['position'])
             expected_prevsite = endsite - 1
+            if endsite <= prevsite:
+                raise IOError('Invalid PDB: position {} is before site {}',
+                              endsite, prevsite)
             if expected_prevsite != prevsite and expected_prevsite > 0:
                 print('Missing sites between {} and {} on chain {}'\
                       .format(prevsite + 1, endsite - 1, chain))
