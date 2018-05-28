@@ -64,7 +64,7 @@ def get_peptide_chains(pdbdb):
                     'chain': chain,
                     'peptide': peptide
                 })
-            startsite = pdbentry['position']
+            startsite = 1
             chain = pdbentry['chain']
             peptide = ''
             endsite = None
