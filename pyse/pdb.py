@@ -64,15 +64,17 @@ def get_peptide_chains(pdbdb):
                     'chain': chain,
                     'peptide': peptide
                 })
-            startsite = pdbentry['position']
+            startsite = 1
             chain = pdbentry['chain']
             peptide = ''
             endsite = None
-            prevsite = None
+            prevsite = 0
+            expected_prevsite = None
 
         try:
             endsite = int(pdbentry['position'])
-            if prevsite != None and endsite - 1 != prevsite:
+            expected_prevsite = endsite - 1
+            if expected_prevsite != prevsite and expected_prevsite > 0:
                 print('Missing sites between {} and {}'.format(prevsite + 1, endsite - 1))
                 for i in range(prevsite + 1, endsite):
                     peptide += '-'
@@ -88,5 +90,5 @@ def get_peptide_chains(pdbdb):
         'chain': chain,
         'peptide': peptide
     })
-    
+
     return peptidechains
