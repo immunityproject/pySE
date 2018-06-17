@@ -152,7 +152,7 @@ def calculate_energy_deltas(energies, wt_energies):
     energy_deltas = { k: 0.0 for k in energies[0].keys() }
     for k in energy_deltas.keys():
         for i in range(len(energies)):
-            energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
+            energy_deltas[k] += (energies[i][k])
         energy_deltas[k] = energy_deltas[k]/len(energies)
 
     return energy_deltas
