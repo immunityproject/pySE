@@ -155,11 +155,11 @@ def calculate_energy(energies, wt_energies):
     for k in energy_deltas.keys():
         for i in range(len(energies)):
               energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
-              energy_deltas[k] = energy_deltas[k]/len(energies)
-              energy_wt[k] += (wt_energies[i][k])
-              energy_wt[k] = energy_wt[k]/len(energies)
+              energy_wt[k] += (wt_energies[i][k]) 
               energy_mut[k] += (energies[i][k])
-              energy_mut[k] = energy_mut[k]/len(energies)
+        energy_deltas[k] = energy_deltas[k]/len(energies)
+        energy_wt[k] = energy_wt[k]/len(energies)
+        energy_mut[k] = energy_mut[k]/len(energies)
     return energy_deltas, energy_wt, energy_mut
 
 def get_displacement_files(pdb, directory):
