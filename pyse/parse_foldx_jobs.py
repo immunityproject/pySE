@@ -154,9 +154,9 @@ def calculate_energy(energies, wt_energies):
     energy_mut = { k: 0.0 for k in energies[0].keys() }
     for k in energy_deltas.keys():
         for i in range(len(energies)):
-              energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
-              energy_wt[k] += (wt_energies[i][k]) 
-              energy_mut[k] += (energies[i][k])
+            energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
+            energy_wt[k] += (wt_energies[i][k]) 
+            energy_mut[k] += (energies[i][k])
         energy_deltas[k] = energy_deltas[k]/len(energies)
         energy_wt[k] = energy_wt[k]/len(energies)
         energy_mut[k] = energy_mut[k]/len(energies)
