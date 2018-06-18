@@ -139,7 +139,7 @@ def parse_raw_buildmodel(pdb, rawmodel):
 
     return energies, wt_energies
 
-def calculate_energy(energies, wt_energies, energy_type):
+def calculate_energy(energies, wt_energies):
     """Sum the columns in the energies and wt_energies lists and
     return a collapsed list of the averages
 
@@ -154,16 +154,12 @@ def calculate_energy(energies, wt_energies, energy_type):
     energy_mut = { k: 0.0 for k in energies[0].keys() }
     for k in energy_delta.keys():
         for i in range(len(energies)):
-
               energy_delta[k] += (energies[i][k] - wt_energies[i][k])
               energy_delta[k] = energy_delta[k]/len(energies)
-
               energy_wt[k] += (wt_energies[i][k])
               energy_wt[k] = energy_wt[k]/len(energies)
-
               energy_mut[k] += (energies[i][k])
               energy_mut[k] = energy_mut[k]/len(energies)
-              
     return energy_delta, energy_wt, energy_mut
 
 def get_displacement_files(pdb, directory):
@@ -254,7 +250,8 @@ def load_foldx_job(foldx_job):
                                        'Raw_BuildModel_{}.fxout'.format(pdb))
             with open(rawmodel_fn) as rawmodel:
                 energies, wt_energies = parse_raw_buildmodel(pdb, rawmodel)
-                energy_deltas, energy_wt, energy_mut = calculate_energy(energies, wt_energies)
+                energy_deltas, energy_wt, energy_mut = calculate_energy(
+                  energies, wt_energies)
         except FileNotFoundError as e:
             eprint('{},Could not load energy deltas,{}'.format(jobid, e))
 
