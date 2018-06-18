@@ -152,17 +152,17 @@ def calculate_energy(energies, wt_energies, energy_type):
     energy_values = { k: 0.0 for k in energies[0].keys() }
     for k in energy_values.keys():
         for i in range(len(energies)):
-            if energy_type == 'Delta':
-              energy_values[k] += (energies[i][k] - wt_energies[i][k])
-              energy_values[k] = energy_values[k]/len(energies)
-            if energy_type == 'WT':
-              energy_values[k] += (wt_energies[i][k])
-              energy_values[k] = energy_values[k]/len(energies)
-            if energy_type == 'MUT':
-              energy_values[k] += (energies[i][k])
-              energy_values[k] = energy_values[k]/len(energies)
+
+              energy_delta[k] += (energies[i][k] - wt_energies[i][k])
+              energy_delta[k] = energy_delta[k]/len(energies)
+
+              energy_wt[k] += (wt_energies[i][k])
+              energy_wt[k] = energy_wt[k]/len(energies)
+
+              energy_mut[k] += (energies[i][k])
+              energy_mut[k] = energy_mut[k]/len(energies)
               
-    return energy_values
+    return energy_delta, energy_wt, energy_mut
 
 def get_displacement_files(pdb, directory):
     """ Create the full path filename pairs for the 5 Wild Type (WT)
@@ -252,9 +252,7 @@ def load_foldx_job(foldx_job):
                                        'Raw_BuildModel_{}.fxout'.format(pdb))
             with open(rawmodel_fn) as rawmodel:
                 energies, wt_energies = parse_raw_buildmodel(pdb, rawmodel)
-                energy_deltas = calculate_energy(energies, wt_energies, 'Delta')
-                energy_wt = calculate_energy(energies, wt_energies, 'WT')
-                energy_mut = calculate_energy(energies, wt_energies, 'MUT')
+                energy_deltas, energy_wt, energy_mut = calculate_energy(energies, wt_energies)
         except FileNotFoundError as e:
             eprint('{},Could not load energy deltas,{}'.format(jobid, e))
 
