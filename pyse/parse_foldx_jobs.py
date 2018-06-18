@@ -149,8 +149,10 @@ def calculate_energy(energies, wt_energies, energy_type):
               for es, ws in zip(zip(*(energies)),
                                 zip(*(wt_energies)))]
     """
-    energy_values = { k: 0.0 for k in energies[0].keys() }
-    for k in energy_values.keys():
+    energy_delta = { k: 0.0 for k in energies[0].keys() }
+    energy_wt = { k: 0.0 for k in energies[0].keys() }
+    energy_mut = { k: 0.0 for k in energies[0].keys() }
+    for k in energy_delta.keys():
         for i in range(len(energies)):
 
               energy_delta[k] += (energies[i][k] - wt_energies[i][k])
