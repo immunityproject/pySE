@@ -275,6 +275,8 @@ def load_foldx_job(foldx_job):
         'chains': chains,
         'jobdir': job_bn,
         'energy_deltas': energy_deltas,
+        'energy_wt': energy_wt,
+        'energy_mut': energy_mut'
         'displacements': displacements
     }
     return data
