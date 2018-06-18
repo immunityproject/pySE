@@ -149,18 +149,18 @@ def calculate_energy(energies, wt_energies):
               for es, ws in zip(zip(*(energies)),
                                 zip(*(wt_energies)))]
     """
-    energy_delta = { k: 0.0 for k in energies[0].keys() }
+    energy_deltas = { k: 0.0 for k in energies[0].keys() }
     energy_wt = { k: 0.0 for k in energies[0].keys() }
     energy_mut = { k: 0.0 for k in energies[0].keys() }
-    for k in energy_delta.keys():
+    for k in energy_deltas.keys():
         for i in range(len(energies)):
-              energy_delta[k] += (energies[i][k] - wt_energies[i][k])
-              energy_delta[k] = energy_delta[k]/len(energies)
+              energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
+              energy_deltas[k] = energy_deltas[k]/len(energies)
               energy_wt[k] += (wt_energies[i][k])
               energy_wt[k] = energy_wt[k]/len(energies)
               energy_mut[k] += (energies[i][k])
               energy_mut[k] = energy_mut[k]/len(energies)
-    return energy_delta, energy_wt, energy_mut
+    return energy_deltas, energy_wt, energy_mut
 
 def get_displacement_files(pdb, directory):
     """ Create the full path filename pairs for the 5 Wild Type (WT)
