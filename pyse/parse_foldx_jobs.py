@@ -139,7 +139,7 @@ def parse_raw_buildmodel(pdb, rawmodel):
 
     return energies, wt_energies
 
-def calculate_energy_deltas(energies, wt_energies):
+def calculate_energy(energies, wt_energies, energy_type):
     """Sum the columns in the energies and wt_energies lists and
     return a collapsed list of the averages
 
@@ -149,13 +149,20 @@ def calculate_energy_deltas(energies, wt_energies):
               for es, ws in zip(zip(*(energies)),
                                 zip(*(wt_energies)))]
     """
-    energy_deltas = { k: 0.0 for k in energies[0].keys() }
-    for k in energy_deltas.keys():
+    energy_values = { k: 0.0 for k in energies[0].keys() }
+    for k in energy_values.keys():
         for i in range(len(energies)):
-            energy_deltas[k] += (energies[i][k] - wt_energies[i][k])
-        energy_deltas[k] = energy_deltas[k]/len(energies)
-
-    return energy_deltas
+            if energy_type == 'Delta':
+              energy_values[k] += (energies[i][k] - wt_energies[i][k])
+              energy_values[k] = energy_values[k]/len(energies)
+            if energy_type == 'WT':
+              energy_values[k] += (wt_energies[i][k])
+              energy_values[k] = energy_values[k]/len(energies)
+            if energy_type == 'MUT':
+              energy_values[k] += (energies[i][k])
+              energy_values[k] = energy_values[k]/len(energies)
+              
+    return energy_values
 
 def get_displacement_files(pdb, directory):
     """ Create the full path filename pairs for the 5 Wild Type (WT)
@@ -245,7 +252,9 @@ def load_foldx_job(foldx_job):
                                        'Raw_BuildModel_{}.fxout'.format(pdb))
             with open(rawmodel_fn) as rawmodel:
                 energies, wt_energies = parse_raw_buildmodel(pdb, rawmodel)
-                energy_deltas = calculate_energy_deltas(energies, wt_energies)
+                energy_deltas = calculate_energy(energies, wt_energies, 'Delta')
+                energy_wt = calculate_energy(energies, wt_energies, 'WT')
+                energy_mut = calculate_energy(energies, wt_energies, 'MUT')
         except FileNotFoundError as e:
             eprint('{},Could not load energy deltas,{}'.format(jobid, e))
 
