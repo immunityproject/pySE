@@ -12,8 +12,7 @@ lines read from the file.
 
 The jobs created by this tool are used to run the foldx BuildModel
 command.  The job directories contain 2 data elements:
-  1. list.txt - the name of the source pdb file. This is usually a repaired
-                pdb file.
+  1. run.cfg - the run configuration, with pdb file included
   2. individual_list.txt - wild type amino (starting amino letter), the chain
                            (A, B, C, ...), the residue number (site position),
                            and the mutant residue (target mutation).
@@ -55,8 +54,13 @@ def make_job_dir(pdbfile, jobid, line, basedir='.'):
     dir_name = "foldxbm-{}".format(jobid)
     full_loc = os.path.join(basedir, dir_name)
     os.makedirs(full_loc)
-    with open(os.path.join(full_loc, 'list.txt'), 'w') as list_file:
-        list_file.write(os.path.basename(pdbfile) + '\n')
+    with open(os.path.join(full_loc, 'run.cfg'), 'w') as list_file:
+        list_file.write('command=BuildModel\n')
+        list_file.write('pdb=' + os.path.basename(pdbfile) + '\n')
+        list_file.write('mutant-file=individual_list.txt\n')
+        list_file.write('numberOfRuns=5\n')
+        list_file.write('fixedCbeta=false\n')
+        list_file.write('water=-CRYSTAL\n')
     with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as ilist_file:
         ilist_file.write(line + '\n')
 
