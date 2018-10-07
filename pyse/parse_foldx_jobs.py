@@ -242,7 +242,7 @@ def load_foldx_job(foldx_job):
     if ENERGIES:
         try:
             rawmodel_fn = os.path.join(jobdir,
-                                       'Raw_{}.fxout'.format(pdb))
+                                       'Raw_{}_Repair.fxout'.format(pdb))
             with open(rawmodel_fn) as rawmodel:
                 energies, wt_energies = parse_raw_buildmodel(pdb, rawmodel)
                 energy_deltas = calculate_energy_deltas(energies, wt_energies)
