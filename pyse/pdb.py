@@ -64,20 +64,26 @@ def get_peptide_chains(pdbdb):
                     'chain': chain,
                     'peptide': peptide
                 })
-            startsite = pdbentry['position']
+            startsite = 1
             chain = pdbentry['chain']
             peptide = ''
             endsite = None
-            prevsite = None
+            prevsite = 0
+            expected_prevsite = None
 
-        peptide += codes[pdbentry['remnant']]
         try:
             endsite = int(pdbentry['position'])
-            if prevsite != None and endsite - 1 != prevsite:
-                print('Missing sites between {} and {}'.format(prevsite, endsite))
-                for i in range(prevsite + 1, endsite + 1):
+            expected_prevsite = endsite - 1
+            if endsite <= prevsite:
+                raise IOError('Invalid PDB: position {} is before site {}',
+                              endsite, prevsite)
+            if expected_prevsite != prevsite and expected_prevsite > 0:
+                print('Missing sites between {} and {} on chain {}'\
+                      .format(prevsite + 1, endsite - 1, chain))
+                for i in range(prevsite + 1, endsite):
                     peptide += '-'
             prevsite = int(pdbentry['position'])
+            peptide += codes[pdbentry['remnant']]
         except ValueError:
             print('Skipping {} because it is not an int'.format(
                 pdbentry['position']))
