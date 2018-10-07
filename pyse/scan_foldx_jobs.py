@@ -23,8 +23,8 @@ parser.add_argument('--jobs-dir', dest='jobs_dir', default='/epitopedata/jobs',
 parser.add_argument('--working-dir', dest='working_dir', default='foldx_job',
                     help='where to copy job files before running FoldX')
 parser.add_argument('--foldx-exe', dest='foldx_exe',
-                    default='FoldX.linux32', help='the name of the FoldX executable')
-parser.add_argument('--foldx-dir', dest='foldx_dir', default='/epitopedata/ImmunityProject/foldx/foldx3b4hack_1',
+                    default='foldx4', help='the name of the FoldX executable')
+parser.add_argument('--foldx-dir', dest='foldx_dir', default='/epitopedata/ImmunityProject/foldx/foldx4',
                     help='where the FoldX distribution files can be found')
 parser.add_argument('--exit', dest='exit_when_done', action='store_true',
                     help='if set, then the process exits after all jobs are completed')
@@ -32,7 +32,7 @@ args = None
 
 
 def copyConfigurationFrom(dirName):
-    config_files = ['list.txt', 'individual_list.txt']
+    config_files = ['run.cfg', 'individual_list.txt']
     logging.debug('copying config files from ' + dirName)
     for fileName in config_files:
         sourceFileName = path.join(dirName, fileName)
@@ -71,9 +71,9 @@ def deleteResults(dirName):
 
 def runFoldx(dirName):
     exe = path.join(getcwd(), args.working_dir, args.foldx_exe)
-    logging.debug('Running ' + exe + ' -runfile runfile.txt')
+    logging.debug('Running ' + exe + ' -f run.cfg')
     proc = subprocess.Popen(
-        [args.foldx_exe, '-runfile', 'runfile.txt'], cwd=args.working_dir, executable=exe)
+        [args.foldx_exe, '-f', 'run.cfg'], cwd=args.working_dir, executable=exe)
     result = proc.wait()
     foldxOutputFilename = path.join(dirName, 'foldx-output.txt')
     try:
