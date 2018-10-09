@@ -46,7 +46,7 @@ from pyse.pdb import parse_pdb
 from pyse.proteins import codes
 
 
-def make_job_dir(pdbfile, jobid, line, basedir='.'):
+def make_job_dir(pdbfile, jobid, line, basedir='.', cbeta, water_crystal):
     """Generate a job directory for a work item.
     :param pdbfile: the name of the pdbfile that this work item is used with.
     :param line: the mutation(s) that this work item should perform.
@@ -59,8 +59,10 @@ def make_job_dir(pdbfile, jobid, line, basedir='.'):
         list_file.write('pdb=' + os.path.basename(pdbfile) + '\n')
         list_file.write('mutant-file=individual_list.txt\n')
         list_file.write('numberOfRuns=5\n')
-        list_file.write('fixedCbeta=false\n')
-        list_file.write('water=-CRYSTAL\n')
+        if cbeta:
+          list_file.write('fixedCbeta=false\n')
+        if water_crystal:
+          list_file.write('water=-CRYSTAL\n')
     with open(os.path.join(full_loc, 'individual_list.txt'), 'w') as ilist_file:
         ilist_file.write(line + '\n')
 
@@ -86,8 +88,12 @@ def generate_chaingroups(pdbfn):
 @click.option('--protein', '-p', default=None,
               help=('The name of the protein (jobs are put in '
                     'jobdir/proteinname/jobname)'))
+@click.option('--cbeta/--no_cbeta', default=False,
+              help=('The cbeta paramter is set to false'))
+@click.option('--water_crystal/--no_water_crystal', default=False,
+              help=('The water parameter is set to crystal'))
 @click.argument('pdbfile')
-def main(outdir, protein, pdbfile):
+def main(outdir, protein, pdbfile,cbeta,water_crystal):
     """CLI for creating jobs"""
     outdir = os.path.join(outdir, protein)
     print('Reading {} and putting job directories in {}'.format(pdbfile,
@@ -100,7 +106,7 @@ def main(outdir, protein, pdbfile):
                 for mut in codes.values():
                     mutlist = '{}{}{}{};'.format(wtamino, chain, site, mut)
                     jobid = '{}-{}-{}-{}'.format(site, chain, wtamino, mut)
-                    make_job_dir(pdbfile, jobid, mutlist, outdir)
+                    make_job_dir(pdbfile, jobid, mutlist, outdir, cbeta, water_crystal)
 
 
 if __name__ == '__main__':
