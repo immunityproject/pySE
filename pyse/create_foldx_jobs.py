@@ -46,7 +46,7 @@ from pyse.pdb import parse_pdb
 from pyse.proteins import codes
 
 
-def make_job_dir(pdbfile, jobid, line, basedir='.', cbeta, water_crystal):
+def make_job_dir(pdbfile, jobid, line, cbeta, water_crystal, basedir='.'):
     """Generate a job directory for a work item.
     :param pdbfile: the name of the pdbfile that this work item is used with.
     :param line: the mutation(s) that this work item should perform.
@@ -106,7 +106,7 @@ def main(outdir, protein, pdbfile,cbeta,water_crystal):
                 for mut in codes.values():
                     mutlist = '{}{}{}{};'.format(wtamino, chain, site, mut)
                     jobid = '{}-{}-{}-{}'.format(site, chain, wtamino, mut)
-                    make_job_dir(pdbfile, jobid, mutlist, outdir, cbeta, water_crystal)
+                    make_job_dir(pdbfile, jobid, mutlist, cbeta, water_crystal, outdir)
 
 
 if __name__ == '__main__':
