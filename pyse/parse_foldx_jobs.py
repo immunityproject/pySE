@@ -51,7 +51,7 @@ protein2pdb = {v: k for k,v in pdb2protein.items()}
 def find_foldx_jobs(directory):
     """
     A directory is considered a foldx job when it contains:
-      - list.txt
+      - list.txt (foldx3) or run.cfg (foldx4)
       - individual_list.txt
       - A valid pdb name in the list.txt file per pdb2proteins
       - A parseable wt, site, mutation in individual_list.txt
@@ -69,7 +69,9 @@ def find_foldx_jobs(directory):
         if not os.path.isdir(root):
             continue
         files = os.listdir(root)
-        if 'list.txt' not in files or 'individual_list.txt' not in files:
+        if 'list.txt' not in files and 'run.cfg' not in files:
+            continue
+        if 'individual_list.txt' not in files:
             continue
 
         print('Finding foldx job directories...{}'.format(cnt), end='\r')
@@ -80,10 +82,21 @@ def find_foldx_jobs(directory):
         site = None
         mutation = None
         jobdir = None
-        with open(os.path.join(root, 'list.txt'), 'r') as listfile:
-            pdb = listfile.read().strip()
-            protein = pdb2protein.get(pdb, pdb)
-            jobdir = root
+
+        if 'list.txt' in files:
+            with open(os.path.join(root, 'list.txt'), 'r') as listfile:
+                pdb = listfile.read().strip()
+                protein = pdb2protein.get(pdb, pdb)
+                jobdir = root
+        elif 'run.cfg' in files:
+            with open(os.path.join(root, 'run.cfg'), 'r') as listfile:
+                for line in listfile:
+                    if not line.startswith('pdb='):
+                        continue
+                    pdb = line.strip()[4:]
+                    break
+                protein = pdb2protein.get(pdb, pdb)
+                jobdir = root
 
         with open(os.path.join(root, 'individual_list.txt')) as indfile:
             # This will take a line like: EA28E,EB28E,EC28E,ED28E,EE28E,EF28E;
@@ -230,8 +243,9 @@ def load_foldx_job(foldx_job):
     try:
         buildmodel_fn = os.path.join(jobdir,
                                      'BuildModel_{}.fxout'.format(pdb))
-        with open(buildmodel_fn, 'r') as buildmodel:
-            check_buildmodel(buildmodel)
+        if os.path.exists(buildmodel_fn):
+            with open(buildmodel_fn, 'r') as buildmodel:
+                check_buildmodel(buildmodel)
     except Exception as e:
         eprint('{},Detected FoldX Errors,{}'.format(jobid, e))
         return defaultdict(dict)
